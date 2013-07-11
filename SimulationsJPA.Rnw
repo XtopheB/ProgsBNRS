@@ -1,0 +1,683 @@
+% La commande est simplement :  Sweave("MonSweave1.Rnw")
+
+\documentclass[a4paper]{article}
+
+\title{Simulations of the paper submitted to JPA (2013)}
+\author{Christophe Bontemps, Celine Nauges, Vincent Requillart, \& Michel Simioni }
+
+\usepackage{Sweave, setspace,graphicx,srcltx,enumitem,harvard, subfig}
+\begin{document}
+
+% Quelques Options de dipart pour mettre les graphiques dans un sous ripertoire
+% et leur donner le nom Graph-001
+
+\SweaveOpts{prefix.string=GraphicsPaper/JPA}  
+%\setkeys{Gin}{width=0.8\textwidth}
+
+% Et pour laisser l affichage des commentaires du programmes
+\SweaveOpts{keep.source=TRUE}
+
+\maketitle
+\date
+% D'abord on efface tout silencieusement...
+
+<<echo=false,results=hide>>=
+setwd("C:/Chris/zprogs/EPI/Frontiers/efficacite/simulations")   
+#setwd("D:/progs/EPI/Frontiers/Efficacite/simulations")
+
+rm(list=ls())
+
+# Simulated data
+ns   <- 100
+# Year = 1 ***************
+set.seed(12345)
+@
+
+\section*{Simulation framework}
+We decided to present a single output - single input example since it
+allows us to visualize how technological progress (or regress) impacts on the
+distributions over time of inefficiencies measured using the incremental and
+decremental procedures described in the previous section.\\ 
+
+\section{Simulation Case 1} % reprise du cadre du dipart. 
+
+We start by generating a dataset of $N=$\Sexpr{ns} single-input single-output firms over three years from the following equation:
+\begin{equation}
+y_{t}=x_{t}^{0.5}\times \exp \{-0.25\times (t-1)\}/\left( 1+u_{t}\right)
+\label{simu:eq1}
+\end{equation}%
+with $x_{t}\sim U[0,1]$ and $u_{t}\sim \mathcal{N}^{+}(0.2,0.25)$. This procedure generates input-output pairs for year 1, year 2, and year 3, and
+incorporates an assumption of technical regress.
+
+
+D'abord on simule des donnies en supposant un technical regress d'annie en annie. Ici, on suppose que la 
+vraie frontihre est difinie par  $y=F(x)$:
+\begin{itemize}
+\item pour l'annie 1 : $ y =x^{1/2}$
+\item pour l'annie 2 : $ y =x^{1/2} \cdot e^{-0.25} $
+\item pour l'annie 3 : $ y =x^{1/2} \cdot e^{-0.5} $
+\end{itemize}
+
+
+<<echo =false, results=hide >>=
+library(Benchmarking)
+library(tmvtnorm)
+library(foreign)
+
+# True frontier Cadre 1 (taken from Simulation.rnw) 14/06/2011
+
+# Augmentation micanique des x d'une annie sur l'autre 
+alpha <- 1
+
+x1    <- runif(1:ns,0,1)
+ybar1 <- x1^(1/2)
+u1    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y1    <- ybar1/(1+u1)
+
+# Year = 2 *************** 
+# On ne change pas les x pour pouvoir suivre les firmes... (20/03/2011) !!
+
+#x2    <- runif(1:ns,0,1)
+x2 <- x1*alpha
+ybar2 <- (x2^(1/2))*exp(-0.25)
+u2    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y2    <- ybar2/(1+u2)
+ 
+# Year = 3 ***************
+
+#x3    <- runif(1:ns,0,1)
+x3 <- x2*alpha 
+ybar3 <- (x3^(1/2))*exp(-0.25*2)
+u3    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y3    <- ybar3/(1+u3)
+
+#Bound
+min.y <- min(c(y1,y2,y3))
+max.y <- max(c(y1,y2,y3))
+
+#Bound Modified
+min.y <- 0
+max.y <- 1
+
+x1 <-as.matrix(x1)
+x2 <-as.matrix(x2)
+x3 <-as.matrix(x3)
+
+# PLOT OF CONTAPORENEOUs FRONTIERS  !!
+
+
+# YEAR 1
+plot(y1~x1,type="p",col="red", main="Firms Year 1", ylim=c(min.y, max.y),
+      xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+# Avec frontihre 
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out", ylim=c(min.y, max.y),        col="red", lwd=2, pch=NA, xlab = "x", main="Firms Year 1", sub="Case of Technical Progress", add=TRUE)
+
+# YEAR 2
+plot(y2~x2,type="p",col="blue", main="Firms Year 2", ylim=c(min.y, max.y), 
+      xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+# Avec frontihre 
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out", ylim=c(min.y, max.y),        col="blue", lwd=2, pch=NA, xlab = "x", main="Firms Year 2", sub="Case of Technical Regress", add=TRUE)
+
+# YEAR 3
+
+plot(y3~x3,type="p",col="brown", main="Firms Year 3", ylim=c(min.y, max.y),
+     xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+# Avec frontihre 
+ Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out", ylim=c(min.y, max.y),        col="brown", lwd=2, pch=NA, xlab = "x", main="Firms Year 3", sub="Case of Technical Regress", add=TRUE)
+
+
+@
+% GRAPHIQUES POOL des donnies et FRONTI7RE DEA !! 
+\subsection{Visualisation sens \textit{Forward}}
+Voyons un peu le pool des 3 ensembles la frontihre DEA dans le sens  \textit{FIPS}. Le cadre de sismulation est tel que le
+ nombre de simulations est $Ns =$ \textbf{\Sexpr{ns}} ; d'une annie sur l'autre les "x" augmentent de \textbf{\Sexpr{alpha}}.
+
+<<fig=TRUE,echo=FALSE>>=
+
+#par(mfrow=c(1,3), pty = "s")
+ # FIPS Year  1
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out",
+                       ylim=c(min.y, max.y),  
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       #main="(a) FIPS_1"
+                       )
+text(y1~x1,cex=1.0, col="red", labels="1", xlab = "Input", ylab ="Output")
+@
+
+<<fig=TRUE,echo=FALSE>>=  
+# FIPS YEAR 1 +2
+x12 <- rbind(x1, x2)
+y12 <- rbind(y1, y2)
+Benchmarking::dea.plot(x12,y12, RTS="vrs", ORIENTATION="in-out", 
+                       ylim=c(min.y, max.y),   
+                       col="blue",  lwd=2, pch=NA, xlab = "x",
+                       #main="(b) FIPS_2"
+                       )
+text(y1~x1,cex=1.0, col="red", labels="1", xlab = "Input", ylab ="Output")
+text(y2~x2,cex=1.0, col="blue", labels="2")
+@
+
+<<fig=TRUE,echo=FALSE>>=  
+# FIPS YEAR 1+2+3  
+x123 <- rbind(x12, x3)
+y123 <- rbind(y12, y3)
+
+Benchmarking::dea.plot(x123,y123, RTS="vrs", ORIENTATION="in-out", 
+                   ylim=c(min.y, max.y), 
+                   col="brown",  lwd=2, pch=NA, xlab = "x",
+                  #main="(c) FIPS_3"
+                       )
+text(y1~x1,cex=1.0, col="red", labels="1", xlab = "Input", ylab ="Output")
+text(y2~x2,cex=1.0, col="blue", labels="2")
+text(y3~x3,cex=1.0, col="brown", labels="3")
+    
+@
+                       
+\subsection{Sens \textit{backward}:}
+
+<<fig=TRUE,echo=FALSE>>=
+# FIGURE ONE IN PAPER (ctd)
+#par(mfrow=c(1,3), pty = "s")
+# BIPS YEAR 3
+Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out",
+                       ylim=c(min.y, max.y), 
+                       col="brown",lwd=2, pch=NA, xlab = "x")
+text(y3~x3,cex=1.0, col="brown", labels="3")
+@
+
+<<fig=TRUE,echo=FALSE>>=    
+# BIPS YEAR 3+2
+x32 <- rbind(x3, x2)
+y32 <- rbind(y3, y2)
+Benchmarking::dea.plot(x32,y32, RTS="vrs", ORIENTATION="in-out", 
+                       ylim=c(min.y, max.y),
+                       col="blue",lwd=2, pch=NA, xlab = "x")
+
+text(y3~x3,cex=1.0, col="brown", labels="3")
+text(y2~x2,cex=1.0, col="blue", labels="2")
+@
+
+<<fig=TRUE,echo=FALSE>>=
+# BIPS YEAR 3 + 2 + 1
+x321 <- rbind(x32, x1)
+y321 <- rbind(y32, y1)
+Benchmarking::dea.plot(x321,y321, RTS="vrs", ORIENTATION="in-out",
+                       ylim=c(min.y, max.y),
+                       col="red",lwd=2, pch=NA, xlab = "x")
+text(y3~x3,cex=1.0, col="brown", labels="3")
+text(y2~x2,cex=1.0, col="blue", labels="2")
+text(y1~x1,cex=1.0, col="red", labels="1")   
+
+@
+
+<<fig=TRUE,echo=FALSE>>=
+# BIPS YEAR 3 + 2 + 1 AND simulation points 
+Benchmarking::dea.plot(x321,y321, RTS="vrs", ORIENTATION="in-out",  
+                ylim=c(min.y, max.y),
+                       col="red",lwd=2, pch=NA, xlab = "x",
+                       main="BIPS_3 with simulation points")
+text(y3~x3,cex=1.0, col="brown", labels="3")
+text(y2~x2,cex=1.0, col="blue", labels="2")
+text(y1~x1,cex=1.0, col="red", labels="1")   
+
+set.seed(45678)
+nbsimu <- 100
+ii <- sample(seq(1:ns),replace=FALSE)
+xsimu <- x123[ii[1:nbsimu],]
+ysimu <- y123[ii[1:nbsimu],]
+rug(xsimu)
+#rug(ysimu, side=2)  # Vertical axis
+points(xsimu, ysimu,col="black",lwd=2 , pch=1)
+
+@
+\subsection{Efficiencies (case 1)}
+
+\subsubsection{Efficiency on ``FIPS''}
+
+We compute efficiency for \textbf{\Sexpr{nbsimu}} points drown from the sample of all firms all years
+\begin{itemize}
+\item On $FIPS_1$
+\item On $FIPS_2$
+\item On $FIPS_3$
+\end{itemize}
+
+<<echo =false, results=hide >>=
+
+# Technical efficiency measurement : FIPS
+# ----------------------------------------------
+
+# 3 sur 1
+e3.1 <- Benchmarking::dea(xsimu, ysimu, XREF=x1, YREF=y1, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2
+e3.12 <- Benchmarking::dea(xsimu, ysimu, XREF=x12, YREF=y12, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2 + 3
+e3.123 <- Benchmarking::dea(xsimu, ysimu, XREF=x123, YREF=y123, RTS="vrs", ORIENTATION="out")
+
+# Inversion Farell-Sheppard 
+# Farell versus Shephard
+one <- rep(1, nbsimu)
+eff3.1 <- one/e3.1$eff  
+eff3.12 <- one/e3.12$eff  
+eff3.123 <- one/e3.123$eff  
+@
+
+Toujours dans le cadre de la simulation d'un technical regress, les distributions des efficacitis sur ces 3 frontihres sont risumies par le graphique suivant:  
+
+<<fig=TRUE,echo=FALSE>>=
+
+boxplot(eff3.123,eff3.12,eff3.1,
+    col = c("chocolate", "lightblue", "mistyrose"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    outline=FALSE,
+    names = c("FIPS 3", "FIPS 2", "FIPS 1" ))
+                
+#legend("bottomleft", c("Year 3 on Frontier(Year1)",
+#                         "Year 3 on Frontier(Year1+Year2)",
+#                         "Year 3 on Frontier(Year1+Year2+Year3)"),
+#       fill =c("mistyrose", "lightblue", "lightcyan") )
+
+@
+
+
+\subsubsection{Efficacitis sur Frontihres ``BIPS''}
+ 
+We compute efficiency for \textbf{\Sexpr{nbsimu}} points drown from the sample of all firms all years
+\begin{itemize}
+\item On $BIPS_1$
+\item On $BIPS_2$
+\item On $BIPS_3$
+\end{itemize}
+
+
+<<echo =false, results=hide >>=
+# Technical efficiency measurement : BIPS
+# ----------------------------------------------
+
+# 3 sur 3 
+e3.3 <- Benchmarking::dea(xsimu, ysimu, XREF=x3, YREF=y3,  RTS="vrs", ORIENTATION="out")
+# 3 sur 3 + 2
+e3.32 <- Benchmarking::dea(xsimu, ysimu, XREF=x32, YREF=y32,  RTS="vrs", ORIENTATION="out")
+# 3 sur 3 + 2 + 1
+e3.321 <- Benchmarking::dea(xsimu, ysimu, XREF=x321, YREF=y321,  RTS="vrs", ORIENTATION="out")
+# Farell versus Shephard
+eff3.3 <- one/e3.3$eff  
+eff3.32 <- one/e3.32$eff  
+eff3.321 <- one/e3.321$eff  
+@
+
+<<fig=TRUE,echo=FALSE>>=
+
+boxplot(eff3.3,eff3.32,eff3.321, 
+    col = c("chocolate", "lightblue", "mistyrose"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    outline=TRUE,
+    names = c("BIPS 3", "BIPS 2", "BIPS 1" ) 
+    )
+                
+#legend("bottomleft", c("Year 3 on Frontier(Year3)",
+#                         "Year 3 on Frontier(Year3+Year2)",
+#                         "Year 3 on Frontier(Year3+Year2+Year1)"),
+#       fill =c("mistyrose", "lightblue", "lightcyan") 
+@
+
+% ----------------------- CASE 2 -----------------------------------------
+%========================================================================
+
+
+\section{Simulation Case 2} %(25/04/2011)}
+We decide that there is technical regress for small firms and technical progress for "Big" firrms (25/04/2011) \\ 
+
+Thus, we assume that the true technology frontier at time $t$ is characterized by:
+\begin{eqnarray*}  
+y_t &=& x^{0.2}, \;  t=1 \\
+y_t &=& x^{0.6}, \;  t=2 \\
+y_t &=& x^{1}, \; t=3 \\
+\end{eqnarray*}           
+The only input $x_t$ is assumed to come from Uniform(0,1). We assume that
+technical efficiency is defined as $TE_t = 1+u_t$ where $u_t$ comes from $N^+(\mu, \sigma)$.
+Then, for a given quantity of the input $x$, the observed quantity of output
+at time t is denoted as $y_t = y_t(x)/TE_t$. 
+For each date t ($t = 1, 2, 3)$, we simulate Ns observations setting $\mu=0.25$,  $\sigma=0.2$.
+
+
+<<echo =false, results=hide >>=
+#detach("package:FEAR")
+
+# Augmentation micanique des x d'une annie sur l'autre 
+alpha <- 1
+
+# True frontier
+inp1  <- seq(0,2,by=0.01)
+outp1<-inp1^0.2
+inp2 <- inp1*alpha
+outp2<-inp1^0.6
+inp3 <- inp2*alpha
+outp3<-inp2^1
+
+# Simulated data
+
+# Year = 1 ***************
+set.seed(12345)     #cadre N02
+#set.seed(54321)    #cadre N01
+# Modif 15/11/2010 : On suit les firmes  x1=x2=x3 
+# modif 21/03/2011 : les x peuvent augmenter du taux alpha chaque annie
+
+x1    <- runif(1:ns,0,2)
+ybar1 <- x1^0.2
+u1    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y1    <- ybar1/(1+u1)
+
+# Year = 2 *************** 
+# On ne change pas les x pour pouvoir suivre les firmes... (20/03/2011) !!
+# On dicale les x....
+
+# x2    <- runif(1:ns,0,2)
+x2 <- x1*alpha
+ybar2 <- x2^0.6
+u2    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y2    <- ybar2/(1+u2)
+ 
+# Year = 3 ***************
+
+#x3    <- runif(1:ns,0,2)
+x3 <- x2*alpha 
+ybar3 <- x3^1
+u3    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y3    <- ybar3/(1+u3)
+
+
+#Bound
+min.y <- min(c(y1,y2,y3))
+max.y <- max(c(y1,y2,y3))
+
+x1 <-as.matrix(x1)
+x2 <-as.matrix(x2)
+x3 <-as.matrix(x3)
+@
+
+% Frontihres  thioriques (` changer avec travail du 11/06/2011)
+
+\subsection{Visualisation des frontihres et des "pool"}
+
+<<fig=TRUE,echo=FALSE>>=
+    plot(outp1~inp1,col="red", type="l", lwd =2, ylim=c(min.y, max.y), 
+    xlab = "Input", ylab ="Output")
+    lines(outp2~inp2,col="blue", lwd =2)
+    lines(outp3~inp3,col="brown",lwd =2)
+    legend("topleft", c("Year 1", "Year 2", "Year 3"), lwd=c(2,2,2), col=c("red", "blue", "brown"))
+@
+
+
+<<fig=TRUE,echo=FALSE>>=
+par(mfrow=c(2,2))
+# Frontihres simulies
+plot(outp1~inp1,col="red", type="l", ylim=c(min.y, max.y), main =c("(N=",ns," points)"))
+lines(outp2~inp2,col="blue")
+lines(outp3~inp3,col="brown")
+
+# Frontihres simulies et DEA (Year1)
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out")
+points(y1~x1,type="p",col="red", main="Firms Year 1", ylim=c(min.y, max.y), sub="In black the DEA frontier")
+lines(outp1~inp1,col="red")
+
+# Frontihres simulies et DEA (Year2)
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out")
+points(y2~x2,type="p",col="blue", main="Firms Year 2", ylim=c(min.y, max.y), sub="In black the DEA frontier")
+lines(outp2~inp2,col="blue")
+
+# Frontihres simulies et DEA (Year3)
+Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out")
+points(y3~x3,type="p",col="brown", main="Firms Year 3",  ylim=c(min.y, max.y), sub="In black the DEA frontier")
+#lines(outp1~inp1,col="red")
+#lines(outp2~inp2,col="blue")
+lines(outp3~inp3,col="brown")
+@
+
+
+% GRAPHIQUES POOL des donnies et FRONTI7RE DEA !! 
+\subsubsection{Sens \textit{Forward}}
+Voyons un peu le pool des 3 ensembles la frontihre DEA dans le sens  \textit{FIPS}. Le cadre de sismulation est tel que le
+ nombre de simulations est $Ns =$\textbf{\Sexpr{ns}} ; d'une annie sur l'autre les "x" augmentent de \textbf{\Sexpr{alpha}}.
+
+<<fig=TRUE,echo=FALSE>>=
+par(mfrow=c(1,3), pty = "s")
+# FIPS Year  1
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out",
+                         main="FIPS_1")
+points(y1~x1,type="p",col="red", main="Pooling Firms Year 1", ylim=c(min.y, max.y))
+
+# FIPS YEAR 1 +2
+x12 <- rbind(x1, x2)
+y12 <- rbind(y1, y2)
+Benchmarking::dea.plot(x12,y12, RTS="vrs", ORIENTATION="in-out",
+                         main="FIPS_2")
+points(y1~x1,type="p",col="red",  ylim=c(min.y, max.y))
+points(y2~x2,type="p",col="blue", main="Firms Year 2")
+
+ # FIPS YEAR 1+2+3  
+x123 <- rbind(x12, x3)
+y123 <- rbind(y12, y3)
+
+Benchmarking::dea.plot(x123,y123, RTS="vrs", ORIENTATION="in-out", 
+                       main="FIPS_3")
+points(y1~x1,type="p",col="red", ylim=c(min.y, max.y))
+points(y2~x2,type="p",col="blue")
+points(y3~x3,type="p",col="brown")
+    
+@
+
+Un petit ``zoom''  sur les fontihres FIPS (en plein la frontihre FIPS Y1+Y2+Y3, en pointillis la frontihre sur Year 1).
+
+<<fig=TRUE,echo=FALSE>>=
+    Benchmarking::dea.plot(x123,y123, RTS="vrs", ORIENTATION="in-out")
+    Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out", add="TRUE", col="brown",lty=2,lwd=2 )
+    points(y1~x1,type="p",col="red", main="Pooling Firms Year 1, Year 2 & Year 3", ylim=c(min.y, max.y))
+    points(y2~x2,type="p",col="blue")
+    points(y3~x3,type="p",col="brown")
+@
+\subsection{Sens \textit{backward}:}
+
+<<fig=TRUE,echo=FALSE>>=
+par(mfrow=c(1,3), pty = "s")
+# BIPS YEAR 3
+    Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out")
+    points(y3~x3,type="p",col="brown", main="Firms Year 3",  ylim=c(min.y, max.y))
+    
+# BIPS YEAR 3+2
+    x32 <- rbind(x3, x2)
+    y32 <- rbind(y3, y2)
+    Benchmarking::dea.plot(x32,y32, RTS="vrs", ORIENTATION="in-out")
+    points(y3~x3,type="p",col="brown", main="Firms Year 3 & Year 2",  ylim=c(min.y, max.y))
+    points(y2~x2,type="p",col="blue")
+
+# BIPS YEAR 3 + 2 + 1
+    x321 <- rbind(x32, x1)
+    y321 <- rbind(y32, y1)
+    Benchmarking::dea.plot(x321,y321, RTS="vrs", ORIENTATION="in-out")
+    Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out", add="TRUE", col="brown")
+    points(y3~x3,type="p",col="brown", main="Firms Year 3, Year 2 & Year 1",  ylim=c(min.y, max.y))
+    points(y2~x2,type="p",col="blue")
+    points(y1~x1,type="p",col="red")
+    
+@
+
+Un petit ``zoom''  sur les fontihres FIPS (en plein la frontihre BIPS Y3+Y2+Y1, en pointillis la frontihre sur Year 3).
+
+<<fig=TRUE,echo=FALSE>>=
+    x321 <- rbind(x32, x1)
+    y321 <- rbind(y32, y1)
+    Benchmarking::dea.plot(x321,y321, RTS="vrs", ORIENTATION="in-out")
+    Benchmarking::dea.plot(x3,y3, RTS="vrs", ORIENTATION="in-out", add="TRUE", col="brown",lty=2,lwd=2 )
+    points(y3~x3,type="p",lwd=1, col="brown",  ylim=c(min.y, max.y))
+    points(y2~x2,type="p",col="blue")
+    points(y1~x1,type="p",col="red")
+
+@
+
+
+\subsection{Efficiencies on  ``FIPS''}
+
+<<echo =false, results=hide >>=
+#Simulated sample
+set.seed(44445)
+ii <- sample(seq(1:ns),replace=FALSE)
+xsimu <- x123[ii[1:nbsimu],]
+ysimu <- y123[ii[1:nbsimu],]
+
+# Technical efficiency measurement : FIPS
+# ----------------------------------------------
+
+# 3 sur 1
+e3.1 <- Benchmarking::dea(xsimu, ysimu, XREF=x1, YREF=y1, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2
+e3.12 <- Benchmarking::dea(xsimu, ysimu, XREF=x12, YREF=y12, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2 + 3
+e3.123 <- Benchmarking::dea(xsimu, ysimu, XREF=x123, YREF=y123, RTS="vrs", ORIENTATION="out")
+
+# Inversion Farell-Sheppard 
+# Farell versus Shephard
+eff3.1 <- one/e3.1$eff  
+eff3.12 <- one/e3.12$eff  
+eff3.123 <- one/e3.123$eff  
+
+@
+In the Case 2 and for\Sexpr{nbsimu}  firms drawn randomly from the simulated sample (\Sexpr{ns} firms each year),  the distribution of efficiencies are as follows:  
+
+<<fig=TRUE,echo=FALSE>>=
+
+boxplot(eff3.123,eff3.12,eff3.1,
+    col = c("chocolate", "lightblue", "mistyrose"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    outline=FALSE,
+    names = c("FIPS 3", "FIPS 2", "FIPS 1" )
+                )
+                
+#legend("bottomleft", c("Year 3 on Frontier(Year1)",
+#                         "Year 3 on Frontier(Year1+Year2)",
+#                         "Year 3 on Frontier(Year1+Year2+Year3)"),
+#       fill =c("mistyrose", "lightblue", "lightcyan") )
+
+@
+
+\subsection{Efficiencies on ``BIPS''}
+ 
+<<echo =false, results=hide >>=
+# Technical efficiency measurement : BIPS
+# ----------------------------------------------
+
+# 3 sur 3 
+e3.3 <- Benchmarking::dea(xsimu, ysimu, XREF=x3, YREF=y3,  RTS="vrs", ORIENTATION="out")
+# 3 sur 3 + 2
+e3.32 <- Benchmarking::dea(xsimu, ysimu, XREF=x32, YREF=y32,  RTS="vrs", ORIENTATION="out")
+# 3 sur 3 + 2 + 1
+e3.321 <- Benchmarking::dea(xsimu, ysimu, XREF=x321, YREF=y321,  RTS="vrs", ORIENTATION="out")
+# Farell versus Shephard
+eff3.3 <- one/e3.3$eff  
+eff3.32 <- one/e3.32$eff  
+eff3.321 <- one/e3.321$eff  
+
+@
+
+<<fig=TRUE,echo=FALSE>>=
+boxplot(eff3.3,eff3.32,eff3.321, 
+    col = c("chocolate", "lightblue", "mistyrose"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    outline=FALSE,
+    names = c("BIPS 3", "BIPS 2", "BIPS 1" )
+    )
+                
+#legend("bottomleft", c("Year 3 on Frontier(Year3)",
+#                         "Year 3 on Frontier(Year3+Year2)",
+#                         "Year 3 on Frontier(Year3+Year2+Year1)"),
+#       fill =c("mistyrose", "lightblue", "lightcyan") 
+@
+
+%================================================
+\section{Tests}
+
+<<echo=false, results=hide>>=
+library(np)
+
+TestDistSimu <- function(eff1, eff2, nboot) {
+    one <- data.frame(don=eff1)
+    two <- data.frame(don=eff2)
+
+names(one) <- c("effF")  # variables must have the same name
+names(two) <- c("effF")  # variables must have the same name
+Test <- npdeneqtest(one, two, boot.num = nboot)
+list(Pval = Test$Tn.P , Val = Test$Tn)
+}
+
+#years=c("eff3.3","eff3.32","eff3.321")  
+#
+#for (i in 1:length(years)) {
+#    j <-i+1
+#    while (j <= length(years)){
+#        one <- years[i]
+#        two <- years[j]
+#        #spam <- TestDistSimu(one,two, Nboot)
+#        #fips.P[i,j] <-spam$Pval
+#        #fips.Val[i,j] <-spam$Val
+#        years[i]
+#        years[j]
+#        j <- j+1
+#        
+#    }
+#}
+#
+#
+
+@
+
+
+<<echo=false, results=hide>>=
+# Test sur FIPS
+# Par exemple, H0: densiti an 3 sur 3  = densiti annie 3 sur 1+2+3
+# ---------------------------------------------------
+
+Nboot<-399
+Fips.P <- matrix(NA, nrow=3, ncol=3, 
+                dimnames = list(c("1", "2", "3")))
+                
+Fips.P[1,2] <- TestDistSimu(eff3.1,eff3.12, nboot = Nboot)$Pval
+Fips.P[1,3] <- TestDistSimu(eff3.1,eff3.123, nboot = Nboot)$Pval
+Fips.P[2,3] <- TestDistSimu(eff3.12,eff3.123, nboot = Nboot)$Pval
+@
+
+On peut utiliser les  tests nonparamitriques (Racine, 2009) d'igaliti de distribution les distributions FIPS. 
+Le nombre de bootstraps est ici de \textbf{\Sexpr{Nboot}}: 
+
+
+<<echo=FALSE, results=tex>>=
+library(xtable)
+print(xtable(Fips.P))
+@
+
+De mjme, on peut regarder si la distribution des efficacitis \textbf{BIPS}. Le nombre de bootstraps est ici de \textbf{\Sexpr{Nboot}}:   \\
+
+<<echo=false, results=hide>>=
+# Test sur BIPS
+# Par exemple, H0: densiti an 3 sur 3  = densiti annie 3 sur 1+2+3
+# ---------------------------------------------------
+
+Bips.P <- matrix(NA, nrow=3, ncol=3, 
+                dimnames = list(c("1", "2", "3")))
+                
+Bips.P[1,2] <- TestDistSimu(eff3.321,eff3.32, nboot = Nboot)$Pval
+Bips.P[1,3] <- TestDistSimu(eff3.321,eff3.3, nboot = Nboot)$Pval
+Bips.P[2,3] <- TestDistSimu(eff3.32,eff3.3, nboot = Nboot)$Pval
+@
+
+<<echo=FALSE, results=tex>>=
+library(xtable)
+print(xtable(Bips.P))
+@
+
+
+
+
+\end{document}

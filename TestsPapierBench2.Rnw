@@ -1,0 +1,471 @@
+% Fichier Sweave qui crée les tableausx Stata avec tous les scores pour le papier
+% Scores FIPS, BIPS, Year/Year , 1996/Years; 2006/Years
+% Ainsi que les tests de distribution 
+% 21/02/2011  : Utilise Benchmarking et le fichier ou les outliers ont été atggés par Céline..
+% 17/03/2011 : Ajout des indices de Malmquists
+
+% La commande est simplement :  Sweave("MonSweave1.Rnw")
+\documentclass[a4paper]{article}
+
+\title{Tests sur Secteur 151C\\ Fichier NON cylindré \& ``atypiques exclus'' \\ (avec Benchmarking)}
+\author{Christophe }
+
+\usepackage{Sweave, setspace,graphicx,srcltx,enumitem,harvard, subfig}
+\usepackage{rotating}
+\begin{document}
+
+% Quelques Options de départ pour mettre les graphiques dans un sous répertoire
+% et leur donner le nom Graph-001
+
+\SweaveOpts{prefix.string=GraphBench/GraphComp}  
+
+% Et pour laisser l affichage des commentaires du programmes
+\SweaveOpts{keep.source=TRUE}
+
+\maketitle
+% D abord on efface tout silencieusement...
+
+<<echo=false,results=hide>>=
+#rm(list=ls())
+@
+
+
+
+% <<results=hide>>=               % <--- si l'on souhaite ne pas afficher les résultats...
+% <<echo=false,results=hide>>=    % <--- si l'on ne souhaite ni code, ni résultats... 
+
+
+<<echo=FALSE, results=hide>>=
+## Mars 2010  
+## Nouveau Calcul des scores sur les fichier "Final" = nettoyé (ou pas) des "outliers"
+## Calcul des scores avec frontières 1966, 1997, ..., 2006
+
+
+## First, we clean up objects in memory that might be read from disk
+## from any previous runs.
+
+rm(list=ls())
+
+## Second change the working directory
+
+#setwd("D:/progs/EPI/Frontiers/efficacite")   
+setwd("C:/Chris/progs/EPI/Frontiers/efficacite")   
+
+library(Benchmarking)
+library(foreign)
+library(np)
+
+
+#--------------------------------------------------
+## Partie I: Calcul des scores pour toutes les années
+
+setwd("Data151C")
+
+
+# pour compare on ne touche à rien  !!!!! et on reprend le fichier initial  !!-------------------------
+dataall <- read.table("D151C1996-2006Agg.csv",header=TRUE, sep = ";" )  
+
+#  Fichier  cylindré et excluant les atypiques (23/02/2011) 
+#dataall <- subset(dataall,cylind_sub == 1)
+
+#  Fichier non cylindré excluant les atypiques (25/02/2011) , suffixe "Comp" partout..
+dataall <- subset(dataall,atyp==0)
+
+dim(dataall)
+
+## Scores de chaque année classique     
+
+nball =nrow(dataall)
+x=seq(1996, 2006, by=1)  
+nbtemp=length(x)
+
+
+labels <- names(dataall[,1:3])
+score.sortie.year <- data.frame(toto=numeric(0), toto=numeric(0), toto=numeric(0), toto=numeric(0)) 
+    
+for (i in 1:length(x)) {
+    dataref <- subset(dataall,an1x==x[i])  # <- frontière année courante
+    nref=nrow(dataref)
+    xref=matrix(c(dataref$K,dataref$L,dataref$M),nrow=nref,ncol=3)
+    yref=matrix(c(dataref$Y),nrow=nref,ncol=1)
+    dataobs <- subset(dataall,an1x==x[i])   #<- firmes de l'année courante 
+    nobs=nrow(dataobs)
+    xobs=matrix(c(dataobs$K,dataobs$L,dataobs$M),nrow=nobs,ncol=3)
+    yobs=matrix(c(dataobs$Y),nrow=nobs,ncol=1)
+
+    score.farell <- Benchmarking::dea(X=xobs, Y=yobs, RTS="vrs", ORIENTATION="out")
+    score.year.year <-1/score.farell$eff
+    foo <- cbind(dataref[,1:3], score.year.year)
+    score.sortie.year <- rbind(score.sortie.year, foo)
+ }
+names(score.sortie.year) <- c(labels, "ScoresYearBenComp")
+
+write.dta(score.sortie.year, "ScoresYearFYearBenComp.dta")
+write.table(score.sortie.year, file = "ScoresYearFYearBenComp.txt",row.names = FALSE, append = FALSE)
+@
+
+<<echo=FALSE, results=hide>>=
+
+
+# Firmes pour lesquelles l'efficacité est calculée ...
+
+dataobs <- subset(dataall,an1x==2006)   #<- firmes de 2006 
+nobs=nrow(dataobs)
+xobs=matrix(c(dataobs$K,dataobs$L,dataobs$M),nrow=nobs,ncol=3)
+yobs=matrix(c(dataobs$Y),nrow=nobs,ncol=1)
+
+
+#-------------------------------------------------------------
+## Partie III :  FIPS Scores des firmes 2006 sur frontière FIPS (1996+ 1997+ ...... + 2006 )
+score.sortie = dataobs[, 1:3]
+labels <-names(score.sortie)
+
+x=seq(1996, 2006, by=1)  
+nbtemp=length(x)
+
+for (i in 1:length(x)) {
+    dataref <- subset(dataall,an1x<=x[i])  # <- frontière  Incrémentale 
+    nref=nrow(dataref)
+    xref=matrix(c(dataref$K,dataref$L,dataref$M),nrow=nref,ncol=3)
+    yref=matrix(c(dataref$Y),nrow=nref,ncol=1)
+    
+    score.farell <- Benchmarking::dea(X=xobs, Y=yobs, XREF=xref, YREF=yref, RTS="vrs", ORIENTATION="out")
+    score.obs.ref  <-1/score.farell$eff
+    score.sortie = cbind(score.sortie, score.obs.ref)
+ }
+
+names(score.sortie) <- c(labels, "Fips1996", "Fips1997", "Fips1998", "Fips1999", "Fips2000", "Fips2001", "Fips2002", "Fips2003",
+                        "Fips2004", "Fips2005", "Fips2006" )
+write.dta(score.sortie, "Scores2006FipsBenComp.dta")
+write.table(score.sortie, file = "Scores2006FipsBenComp.txt",row.names = FALSE, append = FALSE)
+
+score.sortie.fips <-score.sortie
+@
+
+<<echo=FALSE, results=hide>>=
+
+#-------------------------------------------------------------
+## Partie III :  Scores des firmes 2006 sur frontière DECREMENTALE 2006; 2005-2006; 2004+2005+2006, .....
+
+score.sortie = dataobs[, 1:3]
+labels <-names(score.sortie)
+
+x=seq(2006, 1996, by=-1)  # <- Decremental !!!  
+nbtemp=length(x)
+
+    
+for (i in 1:length(x)) {
+    dataref <- subset(dataall,an1x>=x[i])  # <- frontière  Decrémentale 
+    nref=nrow(dataref)
+    xref=matrix(c(dataref$K,dataref$L,dataref$M),nrow=nref,ncol=3)
+    yref=matrix(c(dataref$Y),nrow=nref,ncol=1)
+    
+    score.farell <- Benchmarking::dea(X=xobs, Y=yobs, XREF=xref, YREF=yref, RTS="vrs", ORIENTATION="out")
+    score.obs.ref  <-1/score.farell$eff
+    score.sortie = cbind(score.sortie, score.obs.ref)
+ }
+names(score.sortie) <- c(labels, "Bips2006", "Bips2005", "Bips2004", "Bips2003", "Bips2002" ,"Bips2001", "Bips2000",
+    "Bips1999","Bips1998", "Bips1997","Bips1996")
+write.dta(score.sortie, "Scores2006BipsBenComp.dta")
+write.table(score.sortie, file = "Scores2006BipsBenComp.txt",row.names = FALSE, append = FALSE)
+score.sortie.bips <-score.sortie
+
+@
+
+<<echo=FALSE, results=hide>>=
+###  TEST de Distribution 
+library(np)
+
+# definition du nombre de bootstrap pour tous les test
+Nboot=399
+
+# Creation d'une fonction qui retourne le Test pour 2 années dna sles sens FIPS et BIPS !!
+# Il faut avoir caluler les scores avant  
+#Sorties réglées le 28/05/2010
+
+TestDist <- function(year1, year2, nboot, fips=TRUE) {
+if(fips){
+    one <-subset(score.sortie.fips, select=paste("Fips", year1, sep=""))
+    two <-subset(score.sortie.fips, select=paste("Fips", year2, sep=""))
+    }
+else {
+    one <-subset(score.sortie.bips, select=paste("Bips", year1, sep=""))
+    two <-subset(score.sortie.bips, select=paste("Bips", year2, sep=""))
+}
+names(one) <- c("effF")  # variables must have the same name
+names(two) <- c("effF")  # variables must have the same name
+Test <- npdeneqtest(one, two, boot.num = nboot)
+list(Pval = Test$Tn.P , Val = Test$Tn)
+}
+
+@
+
+
+% ------------Debut du papier -------------
+\bigskip 
+On a \textbf{\Sexpr{nrow(dataall)}} observations (toutes années confondues).
+
+% ------------------ FIPS-----------------------
+\section{Résultats sur  FIPS} 
+
+
+\begin{figure}[h]
+\begin{center}
+<<fig=TRUE,echo=FALSE>>=
+boxplot(score.sortie.fips$Fips2006,score.sortie.fips$Fips2005,score.sortie.fips$Fips2004,score.sortie.fips$Fips2003,  
+    score.sortie.fips$Fips2002,score.sortie.fips$Fips2001,score.sortie.fips$Fips2000,score.sortie.fips$Fips1999, 
+    score.sortie.fips$Fips1998,score.sortie.fips$Fips1997,score.sortie.fips$Fips1996, 
+    horizontal=TRUE, 
+    ylab = "Years", 
+    outline = FALSE,
+    names = c("2006", "2005", "2004", "2003", "2002", "2001", "2000", "1999", "1998", "1997", "1996"), 
+    main=paste("Scores distribution of 2006 firms on FIPS frontiers")
+                )           
+@
+\end{center}
+\caption{Scores distribution of 2006 firms on FIPS frontiers}
+\end{figure}
+
+
+<<echo=false, results=hide>>=
+fips.P <- matrix(999, nrow=11, ncol=11, 
+                dimnames = list(c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006"),  
+                                c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006")))
+fips.Val <- matrix(999, nrow=11, ncol=11, 
+                dimnames = list(c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006"),  
+                                c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006")))
+
+years=seq(1996, 2006, by=1)  
+for (i in 1:length(years)) {
+    j <-i+1
+    while (j <= length(years)){
+        one <- years[i]
+        two <- years[j]
+        spam <- TestDist(one,two, Nboot,fips=TRUE )
+        fips.P[i,j] <-spam$Pval
+        fips.Val[i,j] <-spam$Val
+        j <- j+1
+        
+    }
+}
+@
+\newpage
+P-Values des tests sur 1996-2006, réalisés avec \textbf{\Sexpr{mean(Nboot)}} bootstraps  \\
+
+<<echo=FALSE, results=tex>>=
+library(xtable)
+print(xtable(fips.P))
+@
+
+%\clearpage
+
+<<echo =FALSE, results = tex>>=
+#
+#f<-function(x) 
+#{res<-c(summary(x),length(x),sd(x))
+#names(res)<-c(names(res)[1:6],"n","sd")
+#res}
+#
+#eggs <-t(apply(score.sortie.bips[,-c(1:3)],2,f))
+#eggs
+
+spam <- summary(score.sortie.fips$Fips1996)
+spam <- rbind(spam, summary(score.sortie.fips$Fips1997))
+spam <- rbind(spam, summary(score.sortie.fips$Fips1998))
+spam <- rbind(spam, summary(score.sortie.fips$Fips1999))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2000))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2001))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2002))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2003))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2004))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2005))
+spam <- rbind(spam, summary(score.sortie.fips$Fips2006))
+rownames(spam) <- c(1996,1997, 1998,1999, 2000,2001,2002,2003,2004,2005, 2006)
+foo <- xtable(spam, label ="StatsFips", caption = "Statistiques FIPS")
+print(foo)
+@
+%\clearpage
+
+
+
+% -------------BIPS---------------------
+\newpage
+\section{Résultat des tests BIPS} 
+
+
+\begin{figure}[h]
+\begin{center}
+<<fig=TRUE,echo=FALSE>>=
+boxplot(score.sortie.bips$Bips2006,score.sortie.bips$Bips2005,score.sortie.bips$Bips2004,score.sortie.bips$Bips2003,  
+    score.sortie.bips$Bips2002,score.sortie.bips$Bips2001,score.sortie.bips$Bips2000,score.sortie.bips$Bips1999, 
+    score.sortie.bips$Bips1998,score.sortie.bips$Bips1997,score.sortie.bips$Bips1996, 
+    horizontal=TRUE, 
+    ylab = "Years", 
+    outline = FALSE,
+    names = c("2006", "2005", "2004", "2003", "2002", "2001", "2000", "1999", "1998", "1997", "1996"), 
+    main=paste("Scores distribution of 2006 firms on BIPS frontiers")
+                )          
+@
+\end{center}
+\caption{Scores distribution of 2006 firms on BIPS frontiers}
+\end{figure}
+
+
+<<echo=FALSE, results=hide>>=
+bips.P <- matrix(999, nrow=11, ncol=11, 
+                dimnames = list(c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006"),  
+                                c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006")))
+bips.Val <- matrix(999, nrow=11, ncol=11, 
+                dimnames = list(c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006"),  
+                                c("1996", "1997", "1998", "1999", "2000", "2001", "2002", "2003", "2004", "2005", "2006")))
+
+years=seq(1996, 2006, by=1)  
+for (i in 1:length(years)) {
+    j <-i+1
+    while (j <= length(years)){
+        one <- years[i]
+        two <- years[j]
+        spam <- TestDist(one,two, Nboot,fips=FALSE )
+        bips.P[i,j] <-spam$Pval
+        bips.Val[i,j] <-spam$Val
+        j <- j+1
+        
+    }
+}
+@
+
+\newpage
+P-Values des tests sur 1996-2006 ( \textbf{\Sexpr{mean(Nboot)}} bootstraps) \\
+
+<<echo=FALSE, results=tex>>=
+library(xtable)
+print(xtable(bips.P))
+@
+
+%\clearpage
+<<echo = FALSE, results = tex>>=
+
+spam <- summary(score.sortie.bips$Bips1996)
+spam <- rbind(spam, summary(score.sortie.bips$Bips1997))
+spam <- rbind(spam, summary(score.sortie.bips$Bips1998))
+spam <- rbind(spam, summary(score.sortie.bips$Bips1999))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2000))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2001))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2002))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2003))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2004))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2005))
+spam <- rbind(spam, summary(score.sortie.bips$Bips2006))
+rownames(spam) <- c(1996,1997, 1998,1999, 2000,2001,2002,2003,2004,2005, 2006)
+foo <- xtable(spam, label ="StatsBips", caption = "Statistiques BIPS")
+print(foo)
+@
+
+%\clearpage
+
+
+
+% -------- Divers -------------------
+
+\newpage
+\section{Divers}
+
+Valeurs des statistiquess de Tests ($T_n$)  FIPS sur 1996-2006 \\
+
+<<echo=FALSE, results=tex>>=
+library(xtable)
+print(xtable(fips.Val))
+
+@
+
+Stats de Tests BIPS sur 1996-2006 \\
+
+<<echo=TRUE, results=tex>>=
+library(xtable)
+print(xtable(bips.Val))
+
+@
+
+%Chunk N° 5 : Malmquist analysis
+<<echo=FALSE, results=hide>>=
+library(FEAR)
+# definiton of elements 
+i1=seq(1996, 2005, by=1)  
+i2=seq(1997,2006, by=1)
+# ajout de 2 sequences qui nous interesent
+i1<- c(i1, 1996, 2000, 1996)
+i2 <-c(i2,2000, 2006, 2006)
+
+#---------------------------------------------
+## III: Calcul des indisces DE Malmqvuist(Simar-Wilson 1998 ; Wheelock-Wilson, 1999)
+table.malm.ww <-data.frame(toto=numeric(0), toto=numeric(0), toto=numeric(0), toto=numeric(0), toto=numeric(0),
+                            toto=numeric(0), toto=numeric(0)  ) 
+    for (k in 1:length(i1)) {
+    
+    data1 <- subset(dataall,an1x==i1[k])  # <-  année 1
+    n1=nrow(data1)
+    data1.x=t(matrix(c(data1$K,data1$L,data1$M),nrow=n1,ncol=3))
+    data1.y=t(matrix(c(data1$Y),nrow=n1,ncol=1))
+    data1.id=t(matrix(c(data1$ident),nrow=n1,ncol=1))
+    
+    data2 <- subset(dataall,an1x==i2[k])  # <-  année 2
+    n2=nrow(data2)
+    data2.x=t(matrix(c(data2$K,data2$L,data2$M),nrow=n2,ncol=3))
+    data2.y=t(matrix(c(data2$Y),nrow=n2,ncol=1))
+    data2.id=t(matrix(c(data2$ident),nrow=n2,ncol=1))
+
+    #definition de la Table 
+    #estimation
+    malm.com <-FEAR::malmquist.components(X1=data1.x, Y1=data1.y, ID1=data1.id, 
+                                X2=data2.x, Y2=data2.y, ID2=data2.id, 
+                                ORIENTATION=2)
+    
+    malm.all <-malmquist(LIST=malm.com)
+    # Decomposition façon Fare et al...
+    spam <-cbind(i1[k],i2[k], mean(malm.all$malm,na.rm = TRUE), mean(malm.all$pure.eff,na.rm = TRUE),
+                                mean(malm.all$scale,na.rm = TRUE), mean(malm.all$pure.tech,na.rm = TRUE), 
+                                mean(malm.all$scale.tech, na.rm = TRUE))
+    table.malm.ww <-rbind(table.malm.ww,spam)
+    print(table.malm.ww)
+    }  
+@ 
+
+\section{Décomposition de Malmquist façon Simar \& Wilson (1998) et Wheelock \& Wilson (1999) }
+
+La décomposition de malmquist utilisée par Simar \& Wilson (1998) et Wheelock \& Wilson (1999)  propose une décompsotion du terme
+technique en effet purement technique et en un second terme difficilel à interpreter.  On a donc 4 temes dans cette déomposition qui
+utilise la  distance VRS et la distance CRS.
+
+\begin{eqnarray*}
+    MI &=& Pure.Eff \times Scale \\
+        &\times&  Pure.Tech\\
+        &\times& Scale.Tech \\
+       &=& \left(\frac{D^{VRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})}{D^{VRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})}\right)
+       \times \left(\frac{{D^{CRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})} \;/\; {D^{VRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})}}{{D^{CRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})} \;/\; {D^{VRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})}}\right)\\
+       & \times&  \left(\frac{D^{VRS}_\textbf{b}(x_\textbf{c}, y_\textbf{c})}{D^{VRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})}
+       \times  \frac{D^{VRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})}{D^{VRS}_\textbf{c}(x_\textbf{b}, y_\textbf{b})}
+     \right)^{0.5}\\
+     & \times&  \left(
+     \frac{D^{CRS}_\textbf{b}(x_\textbf{c}, y_\textbf{c}) \;/\; D^{VRS}_\textbf{b}(x_\textbf{c}, y_\textbf{c})}
+     {D^{CRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})\;/\; D^{VRS}_\textbf{c}(x_\textbf{c}, y_\textbf{c})}
+       \times  \frac{D^{CRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})\;/\;D^{VRS}_\textbf{b}(x_\textbf{b}, y_\textbf{b})}
+       {D^{CRS}_\textbf{c}(x_\textbf{b}, y_\textbf{b}) \;/\; D^{VRS}_\textbf{c}(x_\textbf{b}, y_\textbf{b})}
+     \right)^{0.5}
+\end{eqnarray*}
+\smallskip
+
+where $D^{CRS}_t(x,y)$ incorporates  the assumption of \textit{Constant} Return to Scale (CRS), while $D^{VRS}_t(x,y)$ incorporates  the assumption of \textit{Variable} Return to Scale (VRS).\\
+
+% Chunk N°6
+<<echo =FALSE, results = tex>>=
+library(xtable)
+
+# mise en forme du tableau
+names(table.malm.ww) <- c("An1", "An2", "Malm", "Pure Eff", "Scale" , "Pure Tech" , "ScaleTech")
+foo2 <- xtable(table.malm.ww, label ="malmquistWW", caption = "Indices de malmquist moyens décomposés suivant SW(1998) et WW (1999)")
+print(foo2)
+@
+
+
+
+\end{document}
