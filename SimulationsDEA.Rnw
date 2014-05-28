@@ -1,0 +1,640 @@
+% La commande est simplement :  Sweave("MonSweave1.Rnw")
+
+\documentclass[a4paper]{article}
+
+\title{\textbf{New} simulations of the paper to be submitted to JPA (2014)}
+\author{Christophe Bontemps, Celine Nauges, Vincent Requillart, \& Michel Simioni }
+
+\usepackage{Sweave, setspace,graphicx,srcltx,enumitem,harvard, subfig}
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+% Quelques Options de dipart pour mettre les graphiques dans un sous ripertoire
+% et leur donner le nom Graph-001
+
+\SweaveOpts{prefix.string=Graphics/JPA}  
+%\setkeys{Gin}{width=0.8\textwidth}
+
+% Et pour laisser l affichage des commentaires du programmes
+\SweaveOpts{keep.source=TRUE}
+
+\maketitle
+\date
+
+
+<<echo=false,results=hide, label=packages>>=
+#setwd("C:/Chris/zprogs/EPI/Frontiers/efficacite/simulations")   
+setwd("D:/progs/EPI/Frontiers/Efficacite/simuJPA")
+
+rm(list=ls())
+
+
+library(Benchmarking)
+library(tmvtnorm)
+library(foreign)
+library(reporttools)
+library(FEAR) 
+tic <- proc.time()
+@
+
+% Parameters !!
+
+<<echo=false,results=hide>>=
+# Simulated data
+ns   <- 100
+ # Nombre de bootstraps pour la crorrection du biais 
+N.rep <- 99
+# Niveau pour la correction du biais (defaut = 0.05)
+alpha.conf <- 0.05   #One minus the size of the confidence interval for the bias corrected efficiencies
+
+set.seed(12345)
+@
+
+\section{Simulation framework}
+We  present a single output - single input simulation exercice 
+allowing us to compare DEA frontiers and Bias-corrected frontiers efficiencies.\\ 
+
+\subsection{Parameters}
+
+The parameters used in this simulation are : 
+\begin{itemize}
+  \item Sample size  (initial): \Sexpr{ns}
+  \item Number of bootstraps for Bias correction  \Sexpr{N.rep}
+  \item Level for the bias correction $\alpha$ = \Sexpr{alpha.conf}
+\end{itemize}
+
+\subsection{Recalling simulation case (1: Regress)} % reprise du cadre du depart. 
+
+We start by generating a dataset of $N=$\Sexpr{ns} single-input single-output firms over three years from the following equation:
+\begin{equation}
+y_{t}=x_{t}^{0.5}\times \exp \{-0.25\times (t-1)\}/\left( 1+u_{t}\right)
+\label{simu:eq1}
+\end{equation}%
+with $x_{t}\sim U[0,1]$ and $u_{t}\sim \mathcal{N}^{+}(0.2,0.25)$. This procedure generates input-output pairs for year 1, year 2, and year 3, and
+incorporates an assumption of technical regress.\\
+
+First we simulate a technical \textbf{regress} from year 1 to year 2 and  from year 2 to year 3.
+We simulate the true frontier each year  by $y=F(x)$:
+\begin{itemize}
+\item For year 1 : $ y =x^{1/2}$
+\item For year 2 : $ y =x^{1/2} \cdot e^{-0.25} $
+\item For year 3 : $ y =x^{1/2} \cdot e^{-0.5} $
+\end{itemize}
+
+<<echo =false, results=hide, label=SimuFrame >>=
+# True frontier Cadre 1 (taken from Simulation.rnw) 14/06/2011
+
+# Augmentation micanique des x d'une annie sur l'autre (PAS UTILISE) 
+alpha <- 1
+
+x1    <- runif(1:ns,0,1)
+ybar1 <- x1^(1/2)
+u1    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y1    <- ybar1/(1+u1)
+
+# Year = 2 *************** 
+# On ne change pas les x pour pouvoir suivre les firmes... (20/03/2011) !!
+
+#x2    <- runif(1:ns,0,1)
+x2 <- x1*alpha
+ybar2 <- (x2^(1/2))*exp(-0.25)
+u2    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y2    <- ybar2/(1+u2)
+ 
+# Year = 3 ***************
+
+#x3    <- runif(1:ns,0,1)
+x3 <- x2*alpha 
+ybar3 <- (x3^(1/2))*exp(-0.25*2)
+u3    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y3    <- ybar3/(1+u3)
+
+#Bound
+min.y <- min(c(y1,y2,y3))
+max.y <- max(c(y1,y2,y3))
+
+#Bound Modified
+min.y <- 0
+max.y <- 1
+
+x1 <-as.matrix(x1)
+x2 <-as.matrix(x2)
+x3 <-as.matrix(x3)
+@
+
+<<echo =false, results=hide, label=SimuPoints >>=
+
+x12 <- rbind(x1, x2)
+y12 <- rbind(y1, y2)
+
+x123 <- rbind(x12, x3)
+y123 <- rbind(y12, y3)
+
+x32 <- rbind(x3, x2)
+y32 <- rbind(y3, y2)
+
+x321 <- rbind(x32, x1)
+y321 <- rbind(y32, y1)
+
+set.seed(45678)
+nbsimu <- 100
+ii <- sample(seq(1:ns),replace=FALSE)
+xsimu <- x123[ii[1:nbsimu],]
+ysimu <- y123[ii[1:nbsimu],]
+
+one <- rep(1, nbsimu)
+@
+
+<<echo =false, fig=TRUE, label=PlotSimuPoints>>=
+
+par(mfrow=c(1,3), pty="s")
+#layout(matrix(c(1,2,3), 1, 3, byrow = TRUE), widths=c(1,1,1), heights=c(1,1,1))
+
+# YEAR 1
+plot(y1~x1,type="p",col="red", main="Firms Year 1", ylim=c(0,1),
+      xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+
+
+# YEAR 2
+plot(y2~x2,type="p",col="blue", main="Firms Year 2", ylim=c(0,1),
+      xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+
+# YEAR 3
+plot(y3~x3,type="p",col="brown", main="Firms Year 3", ylim=c(0,1),
+     xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
+
+
+
+@
+
+\section{Bias-corrected frontiers}
+
+\subsection{Comparing the Biais-Corrected DEA Frontier with the DEA-frontier}
+
+We use here the sample of \textbf{\Sexpr{nrow(x2)}} firms on year 2 ($x_2$), and compute the DEA frontier (VRS ) as well as the bias-corrected frontier. 
+
+<<echo =FALSE, results=tex, label=SummBC-DEA >>=
+# BIAS CORRECTED EFFICIENCIES ON X2 POINTS
+# ----------------------------------------------
+
+# points sur 1 Bias-corrected
+b.2 <- Benchmarking::dea.boot(x2,y2, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+
+results <- cbind(1/b.2$eff, 1/b.2$eff.bc)
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+                     "Bias-corrected efficiency" = r$V2)
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(x2),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+<<echo =false, results=hide,fig=TRUE, label=PlotBC-DEA >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers")
+     )
+
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA", "Points"),
+       lty=c(1,1,NA),col=c("black", "red", "grey"),pch=c(NA, NA,20))
+
+
+@
+
+\subsection{Computing  Bias-Frontier efficiencies with FEAR}
+
+<<echo =FALSE, results=tex, label=SummBC-DEA-FEAR >>=
+# BIAS CORRECTED EFFICIENCIES ON X2 POINTS
+# ----------------------------------------------
+
+# points sur 1 Bias-corrected
+
+X2 <-as.matrix(x2)
+Y2 <-as.matrix(y2)
+Xsimu <-as.matrix(xsimu)
+Ysimu <-as.matrix(ysimu)
+
+b.BF <- Benchmarking::dea.boot(X=X2,Y=Y2, NREP = N.rep, RTS="vrs", ORIENTATION="out",
+                                XREF=X2, YREF=Y2)
+
+
+#library(FEAR) 
+X2 <-t(as.matrix(x2))
+Y2 <-t(as.matrix(y2))
+Xsimu <-t(as.matrix(xsimu))
+Ysimu <-t(as.matrix(ysimu))
+
+b.F <- FEAR::boot.sw98(XOBS=X2,YOBS=Y2, NREP = N.rep, RTS=1, ORIENTATION=2,
+                       alpha=alpha.conf, CI.TYPE=2, 
+                       XREF=X2, YREF=Y2 )
+
+
+results <- cbind(1/b.2$eff, 1/b.2$eff.bc, 1/b.BF$eff.bc ,  b.F$dhat.bc )
+
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+                     "Bias-corrected efficiency" = r$V2,
+                     "Bias-corrected efficiency (verif)" = r$V3,
+                     "Bias-corrected efficiency (FEAR)" = r$V4
+                     )
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(x2),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+
+<<echo =false, results=hide,fig=TRUE, label=PlotBC-DEA-FEAR >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers")
+     )
+
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+Benchmarking::dea.plot(x2,y2/b.F$dhat.bc , RTS="vrs", ORIENTATION="in-out",
+                       col="blue", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA(Benchmarking)", "Bias-Corrected DEA (FEAR)" , "Points"),
+       lty=c(1,1,1,NA),col=c("black", "red", "blue" ,"grey"),pch=c(NA, NA,NA, 20))
+
+
+@
+
+\subsection{Is the Biais changing with sample size ?}
+
+\subsubsection{In the case where we increase the number of points by replicating the sample}
+
+<<echo =false, results=hide>>=
+# BIAS CORRECTED EFFICIENCIES ON X2 POINTS with a larger sample
+# ----------------------------------------------
+
+x22 <- rbind(x2,x2)
+y22 <- rbind(y2,y2)
+one22 <- rep(1, nrow(x22))
+ 
+x22 <-as.matrix(x22)
+
+@
+
+We first use the same sample of points ($x_2, y_2$)   \textbf{replicated} so that the total sample size is doubled (n = \Sexpr{nrow(x22)}), with absolute no changes in the points and thus in the initial DEA frontier estimated.\footnote{Using a new draw from the distribution of ($x_2, y_2$) induces changes in the estimated frontier, and thus on the bias corrected frontier. I found that it was more accurate to see the "pure" effect of sample size using a replication of the initial sample. }  
+
+<<echo =false, results=tex, label=SummBC-DEA-2 >>=
+b.22 <- Benchmarking::dea.boot(x22,y22, NREP = N.rep, ORIENTATION="out",)
+
+
+results <- cbind(1/b.22$eff, 1/b.22$eff.bc)
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+                     "Bias-corrected efficiency" = r$V2)
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies and bias-corrected efficiencies (n=",nrow(x22),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+<<echo =false, results=hide,fig=TRUE ,label=PlotBC-DEA-2 >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers \n with augmented sample (ns=",nrow(x22),")")
+   
+     )
+
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+
+Benchmarking::dea.plot(x22,y22*b.22$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="blue", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+points(x22, y22, col= "lightblue", pch=3)
+
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA (initial)", "Bias-Corrected DEA (sample augmented)", "Points"),
+       lty=c(1,1,1,NA),col=c("black", "red", "blue", "grey"),pch=c(NA, NA, NA,3))
+
+
+@
+
+%%%%  AVEC 6 fois le sample  
+
+<<echo =false, results=hide >>=
+# BIAS CORRECTED EFFICIENCIES ON X2 POINTS with a larger sample
+x26 <- rbind(x2,x2,x2,x2,x2,x2)
+y26 <- rbind(y2,y2,y2,y2,y2,y2)
+one26 <- rep(1, nrow(x26))
+ 
+x26 <-as.matrix(x26)
+@
+
+We now increase 6 time the size of the original sample (still by replicating the points) so that n= \Sexpr{nrow(x26)} 
+
+<<echo =false, results=tex, label=SummBC-DEA-6 >>=
+b.26 <- Benchmarking::dea.boot(x26,y26, NREP = N.rep, ORIENTATION="out")
+#summary(one26/b.26$eff)
+#summary(one26/b.26$eff.bc)
+
+results <- cbind(1/b.26$eff, 1/b.26$eff.bc)
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+                     "Bias-corrected efficiency" = r$V2)
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(x26),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+<<echo =false, results=hide, fig=TRUE,label=PlotBC-DEA-6 >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers \n with augmented sample (n=",nrow(x26),")")
+     )
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="black", lwd=1, pch=NA, xlab = "x", lty=1,
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+
+Benchmarking::dea.plot(x22,y22*b.22$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="blue", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+Benchmarking::dea.plot(x26,y26*b.26$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="brown", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+
+points(x26, y26, col= "lightblue", pch="+")
+
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA (initial)", "Bias-Corrected DEA (sample 2x  augmented)", 
+                "Bias-Corrected DEA (sample 6 x augmented)"),
+       lty=c(1,1,1,1),col=c("black", "red", "blue", "brown")
+       )
+
+@
+
+\clearpage
+
+\subsubsection{In the case where we increase the number of points by adding points from another year}
+
+<<echo =false, results=hide >>=
+# BIAS CORRECTED EFFICIENCIES ON X1+X2 
+
+x23 <- rbind(x2,x3)
+y23 <- rbind(y2,y3)
+
+x23 <-as.matrix(x23)
+@
+
+We now add the points from year 3  ($x_3, y_3$, in blue) to our sample (n= \Sexpr{nrow(x23)} )
+
+<<echo =false, results=tex, label=SummBC-DEA-2-3 >>=
+
+b.23 <- Benchmarking::dea.boot(x23,y23, NREP = N.rep, ORIENTATION="out")
+
+results <- cbind(1/b.23$eff, 1/b.23$eff.bc)
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+                     "Bias-corrected efficiency" = r$V2)
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies and bias-corrected efficiencies when
+                            adding year 3 to year 2 (ns=",nrow(x23),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+<<echo =false, results=hide, fig=TRUE,label=PlotBC-DEA-1-2 >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers \n with augmented sample (ns=",nrow(x23),")")
+     )
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="black", lwd=1, pch=NA, xlab = "x", lty=1,
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+
+Benchmarking::dea.plot(x23,y23*b.23$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="blue", lwd=1, pch=NA, xlab = "x",
+                       add=TRUE,
+                       #main="(a) FIPS_1"
+                       )
+
+
+points(x3, y3, col= "blue", pch="+")
+
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA (initial)", "Bias-Corrected DEA (sample 2+3)", 
+                "Points Y2", "points Y3"),
+       lty=c(1,1,1,0,0),col=c("black", "red", "blue", "grey", "blue"),
+       pch=c(NA, NA, NA,1,3)
+       )
+
+@
+
+<<echo =false, results=hide,label=TAC>>=
+tac <- proc.time()
+Dur <-tac-tic
+@
+
+NB :This program runned for \Sexpr{tac-tic} seconds. 
+
+\section{Computing  Bias-Frontrier efficiencies for points not in the sample used for frontier construction}
+
+ This is not working, neither with Benchmarking nor FEAR !!!
+%  
+% <<echo =FALSE, results=tex, label=SummBC-DEA-SIMU >>=
+% # BIAS CORRECTED EFFICIENCIES ON X2 POINTS
+% # ----------------------------------------------
+% 
+% # points sur 1 Bias-corrected
+% 
+% X2 <-as.matrix(x2)
+% Y2 <-as.matrix(y2)
+% Xsimu <-as.matrix(xsimu)
+% Ysimu <-as.matrix(ysimu)
+% 
+% b.BF <- Benchmarking::dea.boot(X=X2,Y=Y2, NREP = N.rep, RTS="vrs", ORIENTATION="out",
+%                                 XREF=X2, YREF=Y2)
+% 
+% 
+% #library(FEAR) 
+% X2 <-t(as.matrix(x2))
+% Y2 <-t(as.matrix(y2))
+% Xsimu <-t(as.matrix(xsimu))
+% Ysimu <-t(as.matrix(ysimu))
+% 
+% b.F <- FEAR::boot.sw98(XOBS=X2,YOBS=Y2, NREP = N.rep, RTS=1, ORIENTATION=2,
+%                        alpha=alpha.conf, CI.TYPE=2, 
+%                        XREF=X2, YREF=Y2 )
+% 
+% 
+% results <- cbind(1/b.2$eff, 1/b.2$eff.bc, 1/b.BF$eff.bc ,  b.F$dhat.bc )
+% 
+% 
+% r <- as.data.frame(results)
+% Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
+%                      "Bias-corrected efficiency" = r$V2,
+%                      "Bias-corrected efficiency (verif)" = r$V3,
+%                      "Bias-corrected efficiency (FEAR)" = r$V4
+%                      )
+% )
+% 
+% tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+%                 cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(x2),")"),  
+%                 prec=3, longtable = FALSE
+%                 )
+% 
+% @
+% 
+% 
+% <<echo =false, results=hide,fig=TRUE, label=PlotBC-DEA-SIMU >>=
+% plot(x2,y2, col="grey", pch=20,
+%      ylim=c(0,1),
+%      main=paste("DEA and Bias-corrected DEA frontiers")
+%      )
+% 
+% Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+%                        col="Black", lwd=2, pch=NA, xlab = "x",
+%                        add=TRUE,
+%                        )
+% 
+% Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+%                        col="red", lwd=2, pch=NA, xlab = "x",
+%                        add=TRUE,
+%                        )
+% Benchmarking::dea.plot(x2,y2/b.F$dhat.bc , RTS="vrs", ORIENTATION="in-out",
+%                        col="blue", lwd=2, pch=NA, xlab = "x",
+%                        add=TRUE,
+%                        )
+% legend("topleft",
+%        legend=c("DEA", "Bias-Corrected DEA(Benchmarking)", "Bias-Corrected DEA (FEAR)" , "Points"),
+%        lty=c(1,1,1,NA),col=c("black", "red", "blue" ,"grey"),pch=c(NA, NA,NA, 20))
+% 
+% 
+% @
+% 
+
+
+
+\section{FIPS and BIPS with Bias -corrected Frontiers}
+TO DO !!
+
+
+
+
+% 
+% 
+% <<echo =false, results=hide, label=BC-Comp >>=
+% 
+% # BIAS CORRECTED EFFICIENCIES ON SIMULATED POINTS
+% # ----------------------------------------------
+% 
+% # points sur 1 Bias-corrected
+% N.rep <- 99
+% alpha.conf <- 0.05   #One minus the size of the confidence interval for the bias corrected efficiencies
+% 
+% X.simu <- as.matrix(xsimu)
+% Y.simu <- as.matrix(ysimu)
+% 
+% #Notation ep = efficaciti des points simulis donnis par Benchmarking::dea
+% #         effp = efficaciti des points simulis version Shepard
+% #         .2 = points difinissant la frontihre
+% #         .BC = Bias-corrected 
+% ep.2.BC <- Benchmarking::dea.boot(X.simu, Y.simu, XREF=x2, YREF=y2, RTS="vrs", ORIENTATION="out", 
+%                                   NREP=N.rep, alpha= alpha.conf)
+% effp.2.BC <- one/ep.2.BC$eff.bc 
+% effp.2 <- one/ep.2.BC$eff 
+% 
+% plot(x2,y2)
+% Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+%                        col="Black", lwd=2, pch=NA, xlab = "x",
+%                        add=TRUE,
+%                        #main="(a) FIPS_1"
+%                        )
+% 
+% Benchmarking::dea.plot(X.simu,Y.simu*effp.2.BC, RTS="vrs", add=TRUE, 
+%                         col="red", lwd=2, pch=NA )
+% 
+% points(X.simu, Y.simu,col="black",lwd=2 , pch=1)
+% 
+% ORIENTATION="in-out",
+%                        col="red", lwd=2, pch=NA, xlab = "x",
+%                        #main="(a) FIPS_1"
+%                        )
+% @
+
+
+
+
+
+
+
+\end{document}
