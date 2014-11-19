@@ -40,8 +40,12 @@ tic <- proc.time()
 % Parameters !!
 
 <<echo=false,results=hide>>=
-# Simulated data
-ns   <- 100
+# Sample size
+ns   <- 200
+
+#Simlualated (evaluation) points
+nbsimu <- 100
+
  # Nombre de bootstraps pour la crorrection du biais 
 N.rep <- 99
 # Niveau pour la correction du biais (defaut = 0.05)
@@ -59,6 +63,7 @@ allowing us to compare DEA frontiers and Bias-corrected frontiers efficiencies.\
 The parameters used in this simulation are : 
 \begin{itemize}
   \item Sample size  (initial): \Sexpr{ns}
+  \item Size of the evaluation sample\footnote{Randomly drawn from the complete sample of all firms all years} : \Sexpr{nbsimu}
   \item Number of bootstraps for Bias correction  \Sexpr{N.rep}
   \item Level for the bias correction $\alpha$ = \Sexpr{alpha.conf}
 \end{itemize}
@@ -137,7 +142,6 @@ x321 <- rbind(x32, x1)
 y321 <- rbind(y32, y1)
 
 set.seed(45678)
-nbsimu <- 100
 ii <- sample(seq(1:ns),replace=FALSE)
 xsimu <- x123[ii[1:nbsimu],]
 ysimu <- y123[ii[1:nbsimu],]
@@ -163,7 +167,7 @@ plot(y2~x2,type="p",col="blue", main="Firms Year 2", ylim=c(0,1),
 plot(y3~x3,type="p",col="brown", main="Firms Year 3", ylim=c(0,1),
      xlab = "Input", ylab ="Output", sub="Case of Technical Regress")
 
-
+par(mfrow=c(1,1), pty="s")
 
 @
 
@@ -499,6 +503,96 @@ legend("topleft",
 
 @
 
+
+\clearpage
+\section{Computing  Bias-Frontrier efficiencies for points not in the sample used for frontier construction}
+
+ 
+<<echo =FALSE, results=tex, label=SummBC-DEA-SIMU >>=
+# BIAS CORRECTED EFFICIENCIES ON SIMU POINTS
+# ----------------------------------------------
+# 1 : Computing efficiencies for the sample considered
+
+b.2 <- Benchmarking::dea.boot(x2,y2, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+                             
+# 2 : Creating points (Ystar) on the bias-corrected frontier 
+
+y2.star <- y2*b.2$eff.bc
+
+# 3 : Computing distance of SIMU points to the BC-frontier constructed with Ystar 
+
+b2.bc.s <- Benchmarking::dea(xsimu, ysimu, XREF=x2, YREF=y2.star, RTS="vrs", ORIENTATION="out")
+eff.bc.s <- 1/b2.bc.s$eff  
+
+# 4 : (optional) Computing distance of SIMU points to the DEA frontier
+
+b2.s <- Benchmarking::dea(xsimu, ysimu, XREF=x2, YREF=y2, RTS="vrs", ORIENTATION="out")
+eff.s <- 1/b2.s$eff  
+
+#Table 
+results <- cbind(eff.s , eff.bc.s )
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "Efficiency to DEA Frontier" = r$eff.s,
+                     "Efficiency to BC-DEA Frontier" = r$eff.bc.s
+                     )
+)
+
+Mystats <-  list( "n", "mean", "min", "median",  "max",  
+                "$\\bar{Nb}_{Eff}$" = function(x){return(length(which(x==1)))},
+                "$\\bar{Nb}_{Super}$" = function(x){return(length(which(x >1)))}, 
+                "$\\bar{X}_{not}$" = function(x){
+                  toto <-subset(x, x<1)
+                  return(mean(toto))}, 
+                  "na")
+
+
+tableContinuous(vars = Myvars , stats = Mystats,
+                cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(r),")"),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+
+<<echo =false, results=hide,fig=TRUE, label=PlotBC-DEA-SIMU >>=
+plot(x2,y2, col="grey", pch=20,
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers")
+     )
+
+Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+points(xsimu,ysimu, col="black", pch="+",
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers")
+     )
+
+points(x2,y2.star, col="blue", pch="+",
+     ylim=c(0,1),
+     main=paste("DEA and Bias-corrected DEA frontiers")
+     )
+
+
+legend("topleft",
+       legend=c("DEA", "Bias-Corrected DEA",  "Points", "Evaluation Points", "Bias-Corrected Ys"),
+       lty=c(1,1,NA,NA,NA),
+       col=c("black", "red", "grey", "black","Blue"),
+       pch=c(NA, NA, 19 , 3,3))
+
+
+@
+
+
+
 <<echo =false, results=hide,label=TAC>>=
 tac <- proc.time()
 Dur <-tac-tic
@@ -506,88 +600,8 @@ Dur <-tac-tic
 
 NB :This program runned for \Sexpr{tac-tic} seconds. 
 
-\section{Computing  Bias-Frontrier efficiencies for points not in the sample used for frontier construction}
-
- This is not working, neither with Benchmarking nor FEAR !!!
-%  
-% <<echo =FALSE, results=tex, label=SummBC-DEA-SIMU >>=
-% # BIAS CORRECTED EFFICIENCIES ON X2 POINTS
-% # ----------------------------------------------
-% 
-% # points sur 1 Bias-corrected
-% 
-% X2 <-as.matrix(x2)
-% Y2 <-as.matrix(y2)
-% Xsimu <-as.matrix(xsimu)
-% Ysimu <-as.matrix(ysimu)
-% 
-% b.BF <- Benchmarking::dea.boot(X=X2,Y=Y2, NREP = N.rep, RTS="vrs", ORIENTATION="out",
-%                                 XREF=X2, YREF=Y2)
-% 
-% 
-% #library(FEAR) 
-% X2 <-t(as.matrix(x2))
-% Y2 <-t(as.matrix(y2))
-% Xsimu <-t(as.matrix(xsimu))
-% Ysimu <-t(as.matrix(ysimu))
-% 
-% b.F <- FEAR::boot.sw98(XOBS=X2,YOBS=Y2, NREP = N.rep, RTS=1, ORIENTATION=2,
-%                        alpha=alpha.conf, CI.TYPE=2, 
-%                        XREF=X2, YREF=Y2 )
-% 
-% 
-% results <- cbind(1/b.2$eff, 1/b.2$eff.bc, 1/b.BF$eff.bc ,  b.F$dhat.bc )
-% 
-% 
-% r <- as.data.frame(results)
-% Myvars<- with(r,data.frame( "DEA efficiency (vrs)" = r$V1,
-%                      "Bias-corrected efficiency" = r$V2,
-%                      "Bias-corrected efficiency (verif)" = r$V3,
-%                      "Bias-corrected efficiency (FEAR)" = r$V4
-%                      )
-% )
-% 
-% tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
-%                 cap = paste("Efficiencies and bias-corrected efficiencies (ns=",nrow(x2),")"),  
-%                 prec=3, longtable = FALSE
-%                 )
-% 
-% @
-% 
-% 
-% <<echo =false, results=hide,fig=TRUE, label=PlotBC-DEA-SIMU >>=
-% plot(x2,y2, col="grey", pch=20,
-%      ylim=c(0,1),
-%      main=paste("DEA and Bias-corrected DEA frontiers")
-%      )
-% 
-% Benchmarking::dea.plot(x2,y2, RTS="vrs", ORIENTATION="in-out",
-%                        col="Black", lwd=2, pch=NA, xlab = "x",
-%                        add=TRUE,
-%                        )
-% 
-% Benchmarking::dea.plot(x2,y2*b.2$eff.bc, RTS="vrs", ORIENTATION="in-out",
-%                        col="red", lwd=2, pch=NA, xlab = "x",
-%                        add=TRUE,
-%                        )
-% Benchmarking::dea.plot(x2,y2/b.F$dhat.bc , RTS="vrs", ORIENTATION="in-out",
-%                        col="blue", lwd=2, pch=NA, xlab = "x",
-%                        add=TRUE,
-%                        )
-% legend("topleft",
-%        legend=c("DEA", "Bias-Corrected DEA(Benchmarking)", "Bias-Corrected DEA (FEAR)" , "Points"),
-%        lty=c(1,1,1,NA),col=c("black", "red", "blue" ,"grey"),pch=c(NA, NA,NA, 20))
-% 
-% 
-% @
-% 
-
-
-
 \section{FIPS and BIPS with Bias -corrected Frontiers}
-TO DO !!
-
-
+TO DO (In another program) !!
 
 
 % 

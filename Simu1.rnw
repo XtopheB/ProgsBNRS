@@ -1,0 +1,686 @@
+% La commande est simplement :  Sweave("MonSweave1.Rnw")
+
+\documentclass[a4paper]{article}
+
+\title{\textbf{Final} simulations of the technical note to be submitted to JPA (2014)\\
+\textbf{Testing Technical Change} }
+\author{Christophe Bontemps, Celine Nauges, Vincent Requillart, \& Michel Simioni }
+
+\usepackage{Sweave, setspace,graphicx,srcltx,enumitem,harvard, subfig}
+\usepackage{color}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+% Quelques Options de dipart pour mettre les graphiques dans un sous ripertoire
+% et leur donner le nom Graph-001
+
+\SweaveOpts{prefix.string=Graphics/JPA}  
+%\setkeys{Gin}{width=0.8\textwidth}
+
+% Et pour laisser l affichage des commentaires du programmes
+\SweaveOpts{keep.source=TRUE}
+
+% Pour afficher le code en couleur 
+\DefineVerbatimEnvironment{Sinput}{Verbatim}{formatcom = {\color[rgb]{0, 0, 0.56}}}
+\DefineVerbatimEnvironment{Soutput}{Verbatim}{formatcom = {\color[rgb]{0.56, 0, 0}}}
+
+<<echo=false,results=hide, label=packages>>=
+#setwd("C:/Chris/progs/simulationsJPA")   
+setwd("D:/progs/simulationsJPA")
+
+rm(list=ls())
+
+
+library(Benchmarking)
+library(tmvtnorm)
+library(foreign)
+library(reporttools) 
+tic <- proc.time()
+@
+
+<<echo=false,results=hide, label=Parameters >>=
+# Nb of simulated data per year
+#ns   <- 100
+ns <- 100
+ # Nombre de bootstraps for biais correction
+N.rep <- 39
+
+# Niveau pour la correction du biais (default = 0.05)
+alpha.conf <- 0.05   #One minus the size of the confidence interval for the bias corrected efficiencies
+# Nombre de Bootstraps pour test de Li
+
+#Number of bootstraps for the  test : ref Li, Maasoumi et Racine (2009)
+Nboot<-39
+
+# All firms used here 
+nbsimu <- 4*ns
+
+# R computing parameters 
+set.seed(12345)
+
+RVersion <- R.version.string
+BenchmarkingVersion <- packageVersion("Benchmarking")
+npVersion <- packageVersion("np")
+
+@
+
+\maketitle
+\date
+\abstract{
+The parameters used in this simulation exercise are : 
+\begin{itemize}
+  \item Sample size  (each year): \textbf{\Sexpr{ns}}, we run the simulation over \textbf{4} years
+  \item The evaluation sample (all firms, all year) is thus of  \textbf{\Sexpr{nbsimu}} points
+  \item Number of bootstraps for Bias correction of the DEA \textbf{\Sexpr{N.rep}}
+  \item Level for the bias correction $\alpha$ = \Sexpr{alpha.conf}
+  \item For the Li, Maasoumi, and Racine (2009) test, we use \textbf{\Sexpr{Nboot}}  bootstraps.
+\end{itemize}
+\textit{We use  Benchmarking (Peter Bogetoft and Lars Otto, 2014) version \Sexpr{BenchmarkingVersion} for computing effiencies and frontiers and np (Hayfield and Racine, 2008) version \Sexpr{npVersion} for the distribution test. Computation is done under Windows (64) with \Sexpr{R.version.string}.}
+}
+\tableofcontents
+%\listoffigures
+\newpage
+
+
+
+\section{Simulation framework}
+We  present a single output - single input simulation exercice  with \textbf{Technical progress}.\\ 
+
+
+<<echo =false, results=hide, label=SimuFrame >>=
+# True frontier Cadre 1 (taken from Simulation.rnw) 14/06/2011
+
+# right shift of inputs from year to year (not used yet!) 
+alpha <- 1
+# rate of growth of the frontier (exponential term) 
+beta <- 0.25 
+
+x1    <- runif(1:ns,0,1)
+ybar1 <- x1^(1/2)
+u1    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y1    <- ybar1/(1+u1)
+
+# Year = 2 *************** 
+# We draw firms each year  !!
+
+x2    <- runif(1:ns,0,1)
+#x2 <- x1*alpha
+ybar2 <- (x2^(1/2))*exp(beta)
+u2    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y2    <- ybar2/(1+u2)
+ 
+# Year = 3 ***************
+
+x3    <- runif(1:ns,0,1)
+#x3 <- x2*alpha 
+ybar3 <- (x3^(1/2))*exp(beta*2)
+u3    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y3    <- ybar3/(1+u3)
+
+# Year = 4 ***************
+
+x4    <- runif(1:ns,0,1)
+ybar4 <- (x4^(1/2))*exp(beta*3)
+u4    <- rtmvnorm(n=ns, mean=c(0.25), sigma=c(0.2), lower=c(0))
+y4    <- ybar4/(1+u4)
+
+#Bounds
+min.y <- min(c(y1,y2,y3,y4))
+max.y <- max(c(y1,y2,y3,y4))
+max.x <- max(c(x1,x2,x3,x4))
+
+x1 <-as.matrix(x1)
+x2 <-as.matrix(x2)
+x3 <-as.matrix(x3)
+x4 <-as.matrix(x4)
+@
+
+<<echo =false, results=hide, label=SimuPoints >>=
+
+x12 <- rbind(x1, x2)
+y12 <- rbind(y1, y2)
+
+x123 <- rbind(x12, x3)
+y123 <- rbind(y12, y3)
+
+x1234 <- rbind(x123, x4)
+y1234 <- rbind(y123, y4)
+
+# All sample is used for efficiency computation
+
+xsimu <- x1234
+ysimu <- y1234
+
+# Points drawn at random for efficiency computation
+# nbsimu <- 100
+# set.seed(45678)
+# ii <- sample(seq(1:ns),replace=FALSE)
+# xsimu <- x123[ii[1:nbsimu],]
+# ysimu <- y123[ii[1:nbsimu],]
+
+one <- rep(1, nbsimu)
+@
+
+
+
+\subsection*{Simulation Case 1} % reprise du cadre du depart. 
+
+We start by generating a dataset of $N=$\Sexpr{ns} single-input single-output firms over four years from the following equation:
+\begin{equation}
+y_{t}=x_{t}^{0.5}\times \exp \{+0.25\times (t-1)\}/\left( 1+u_{t}\right)
+\label{simu:eq1}
+\end{equation}%
+with $x_{t}\sim U[0,1]$ and $u_{t}\sim \mathcal{N}^{+}(0.2,0.25)$. This procedure generates input-output pairs for 4 years under the assumption of technicalprogress.\\
+
+<<fig=TRUE,echo=FALSE, label=SimuPlot>>=
+#Bounds to control plots
+min.x <- -0.1
+max.x <- 1.1
+min.y <- -0.1
+max.y <- 1.5
+
+# True frontier
+xs  <- seq(0,1,by=0.01)
+# We create a function for the first case (Homethetic increase)
+
+Simufonction1 <- function(x, year){
+  y <- x^(0.5) * exp(0.25*(year-1))
+  return(y)
+}
+
+ys1 <- Simufonction1(xs,1)
+ys2 <- Simufonction1(xs,2)
+ys3 <- Simufonction1(xs,3)
+ys4 <- Simufonction1(xs,4)
+
+
+plot(ys1~xs, col="indianred", type="l", lwd =2, 
+     ylim=c(min.y, max.y),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+lines(ys2~xs,col="cadetblue", lwd =2)
+lines(ys3~xs,col="tan", lwd =2)
+lines(ys4~xs,col="darkseagreen",lwd =2)
+
+legend("bottomright", 
+       c("Frontier year 1", "Frontier year 2", "Frontier year 3", "Frontier year 4"), 
+       lwd=c(2,2,2,2),
+       col=c("indianred", "cadetblue", "tan", "darkseagreen"))
+@
+
+
+<<echo =false, fig=TRUE, label=PlotSimuPoints>>=
+# specific bounds for points plots
+
+
+par(oma=c(0,0,2,0)) 
+par(mfrow=c(2,2), pty="s")
+#layout(matrix(c(1,2,3), 1, 3, byrow = TRUE), widths=c(1,1,1), heights=c(1,1,1))
+# We use a modern style of graphics (less boxes)
+# YEAR 1
+plot(NA, main="Firms Year 1",
+    ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+#points(y1~x1,type="1",col="indianred")
+text(y1~x1,cex=1.0, col="indianred", labels="1")
+
+# YEAR 2
+plot(NA, main="Firms Year 2",
+     ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+#points(y2~x2,type="2",col="cadetblue")
+text(y2~x2,cex=1.0, col="cadetblue", labels="2")
+
+# YEAR 3
+plot(NA, main="Firms Year 3",
+      ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+#points(y3~x3,type="3",col="tan")
+text(y3~x3,cex=1.0, col="tan", labels="3")
+
+plot(NA, main="Firms Year 4",
+      ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+#points(y3~x3,type="3",col="tan")
+text(y4~x4,cex=1.0, col="darkseagreen4", labels="4")
+
+# Main title of the graph
+title(paste ("Firms in the input-output space (",ns,"points each year)"),outer=T)
+
+@
+
+\section{Forward Increasing Meta Production Sets (FIMPS)}
+
+\subsection{DEA frontiers of FIMPS}
+
+<<fig=TRUE,echo=FALSE, label=PlotDEAFIMPS>>=
+par(mfrow=c(2,2), pty = "s")
+# FIMPS Year  1
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out",
+                         main="FIMPS_1", 
+                       ylim=c(min.y, max.y), xlim=c(min.x,max.x), pch=".")
+#points(y1~x1,type="p",col="indianred", main="Pooling Firms Year 1", ylim=c(min.y, max.y))
+text(y1~x1,cex=0.8, col="indianred", labels="1")
+
+# FIMPS YEAR 1 +2
+x12 <- rbind(x1, x2)
+y12 <- rbind(y1, y2)
+Benchmarking::dea.plot(x12,y12, RTS="vrs", ORIENTATION="in-out",
+                         main="FIMPS_2",
+                        ylim=c(min.y, max.y), xlim=c(min.x,max.x), pch=".")
+#points(y1~x1,type="p",col="indianred",  ylim=c(min.y, max.y))
+#points(y2~x2,type="p",col="cadetblue", main="Firms Year 2")
+
+text(y1~x1,cex=0.8, col="indianred", labels="1")
+text(y2~x2,cex=0.8, col="cadetblue", labels="2")
+
+ # FIMPS YEAR 1+2+3  
+x123 <- rbind(x12, x3)
+y123 <- rbind(y12, y3)
+
+Benchmarking::dea.plot(x123,y123, RTS="vrs", ORIENTATION="in-out", 
+                       main="FIMPS_3", 
+                        ylim=c(min.y, max.y), xlim=c(min.x,max.x), pch=".")
+# points(y1~x1,type="p",col="indianred", ylim=c(min.y, max.y))
+# points(y2~x2,type="p",col="cadetblue")
+# points(y3~x3,type="p",col="tan")
+
+text(y1~x1,cex=0.8, col="indianred", labels="1")
+text(y2~x2,cex=0.8, col="cadetblue", labels="2")
+text(y3~x3,cex=0.8, col="tan", labels="3")
+
+
+Benchmarking::dea.plot(x1234,y1234, RTS="vrs", ORIENTATION="in-out", 
+                       main="FIMPS_4", 
+                        ylim=c(min.y, max.y), xlim=c(min.x,max.x), pch=".")
+# points(y1~x1,type="p",col="indianred", ylim=c(min.y, max.y))
+# points(y2~x2,type="p",col="cadetblue")
+# points(y3~x3,type="p",col="tan")
+
+text(y1~x1,cex=0.8, col="indianred", labels="1")
+text(y2~x2,cex=0.8, col="cadetblue", labels="2")
+text(y3~x3,cex=0.8, col="tan", labels="3")
+text(y4~x4,cex=0.8, col="darkseagreen", labels="4")
+
+@
+
+
+\subsection{Biais-Corrected DEA frontiers of FIMPS }
+
+
+<<echo =FALSE, results=tex, label=FIMPS-BC >>=
+# BIAS CORRECTED EFFICIENCIES ON SIMU POINTS
+# ----------------------------------------------
+# 1 : Computing efficiencies for the sample considered
+
+## FIMPS1
+
+b.1 <- Benchmarking::dea.boot(x1,y1, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+                             
+#  Creating points (Ystar) on the bias-corrected frontier 
+
+y1.star <- y1*b.1$eff.bc
+#  Computing distance of SIMU points to the BC-frontier constructed with Ystar 
+b1.bc.s <- Benchmarking::dea(xsimu, ysimu, XREF=x1, YREF=y1.star, RTS="vrs", ORIENTATION="out")
+effBC.1 <- 1/b1.bc.s$eff  
+
+## FIMPS12
+b.12 <- Benchmarking::dea.boot(x12,y12, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+                             
+#  Creating points (Ystar) on the bias-corrected frontier 
+
+y12.star <- y12*b.12$eff.bc
+#  Computing distance of SIMU points to the BC-frontier constructed with Ystar 
+b12.bc.s <- Benchmarking::dea(xsimu, ysimu, XREF=x12, YREF=y12.star, RTS="vrs", ORIENTATION="out")
+effBC.12 <- 1/b12.bc.s$eff  
+
+## FIMPS123
+b.123 <- Benchmarking::dea.boot(x123,y123, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+                             
+# Creating points (Ystar) on the bias-corrected frontier 
+
+y123.star <- y123*b.123$eff.bc
+#  Computing distance of SIMU points to the BC-frontier constructed with Ystar 
+b123.bc.s <- Benchmarking::dea(xsimu, ysimu, XREF=x123, YREF=y123.star, RTS="vrs", ORIENTATION="out")
+effBC.123 <- 1/b123.bc.s$eff  
+
+
+## FIMPS1234
+b.1234 <- Benchmarking::dea.boot(x1234,y1234, NREP = N.rep, RTS="vrs", ORIENTATION="out")
+                             
+# Creating points (Ystar) on the bias-corrected frontier 
+
+y1234.star <- y1234*b.1234$eff.bc
+#  Computing distance of SIMU points to the BC-frontier constructed with Ystar 
+b1234.bc.s <- Benchmarking::dea(xsimu, ysimu, XREF=x1234, YREF=y1234.star, RTS="vrs", ORIENTATION="out")
+effBC.1234 <- 1/b1234.bc.s$eff  
+
+@
+
+<<echo =false, results=hide,fig=TRUE, label=PlotFIMPS1>>=
+
+par(mfrow=c(2,2), pty = "s")
+# BC-FIMPS 1
+plot(x1,y1, col="indianred", pch="1", cex=0.8,
+     main=paste("FIMPS-1"),
+     ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+     
+Benchmarking::dea.plot(x1,y1, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE
+                       )
+
+Benchmarking::dea.plot(x1,y1.star, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+legend("topleft",bty = "n",
+       legend=c("DEA", "Bias-Corr. DEA"),
+       lty=c(1,1,NA),col=c("black", "red"),pch=c(NA, NA))
+
+
+# BC-FIMPS 2 
+plot(x1,y1, col="indianred", pch="1", cex=0.8,
+     main=paste("FIMPS-2"),
+     ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+     
+points(x2,y2, col="cadetblue", pch="2" , cex=0.8, )
+
+Benchmarking::dea.plot(x12,y12, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE
+                       )
+
+Benchmarking::dea.plot(x12,y12.star, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+# legend("topleft", bty = "n",
+#        legend=c("DEA", "Bias-Corrected DEA"),
+#        lty=c(1,1,NA, NA),col=c("black", "red", "indianred", "cadetblue"),pch=c(NA, NA,"1", "2"))
+
+# BC-FIMPS 3 
+
+plot(x1,y1, col="indianred", pch="1", cex=0.8,
+     main=paste("FIMPS-3"),
+     ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+
+points(x2,y2, col="cadetblue", pch="2", cex=0.8, )
+points(x3,y3, col="tan", pch="3", cex=0.8, )
+
+Benchmarking::dea.plot(x123,y123, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE
+                       )
+
+Benchmarking::dea.plot(x123,y123.star, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+
+# legend("topleft",bty = "n",
+#        legend=c("DEA", "Bias-Corrected DEA", "Year 1", "Year 2", "Year 3"),
+#        lty=c(1,1,NA, NA, NA),col=c("black", "red", "indianred", "cadetblue", "tan"),pch=c(NA, NA,"1", "2","3"))
+
+
+# BC-FIMPS 4 
+
+plot(x1,y1, col="indianred", pch="1", cex=0.8,
+     main=paste("FIMPS-4"),
+     ylim=c(min.y, max.y), xlim=c(min.x,max.x),
+     axes = FALSE,
+     xlab = "Input", ylab ="Output", sub="")
+axis(side = 1)
+axis(side=2)
+
+points(x2,y2, col="cadetblue", pch="2", cex=0.8, )
+points(x3,y3, col="tan", pch="3",cex=0.8, )
+points(x4,y4, col="darkseagreen", pch="4", cex=0.8, )
+
+
+Benchmarking::dea.plot(x1234,y1234, RTS="vrs", ORIENTATION="in-out",
+                       col="Black", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE
+                       )
+
+Benchmarking::dea.plot(x1234,y1234.star, RTS="vrs", ORIENTATION="in-out",
+                       col="red", lwd=2, pch=NA, xlab = "x",
+                       add=TRUE,
+                       )
+@
+
+\section{Efficiencies based on  ``FIMPS'' and ``BC-FIMPS''}
+
+We compute efficiency for the \textbf{\Sexpr{nbsimu}} points representing all firms all years. 
+
+\begin{itemize}
+\item On $FIMPS_1$ and on BC-$FIMPS_1$
+\item On $FIMPS_2$ and on BC-$FIMPS_2$
+\item On $FIMPS_3$ and on BC-$FIMPS_3$
+\end{itemize}
+
+In this section, we compute the distribution of efficiencies :
+
+<<echo =F, results=hide, label=FIMPS >>=
+
+# Technical efficiency measurement : FIMPS
+# ----------------------------------------------
+
+# 3 sur 1
+e.1 <- Benchmarking::dea(xsimu, ysimu, XREF=x1, YREF=y1, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2
+e.12 <- Benchmarking::dea(xsimu, ysimu, XREF=x12, YREF=y12, RTS="vrs", ORIENTATION="out")
+# 3 sur 1 + 2 + 3
+e.123 <- Benchmarking::dea(xsimu, ysimu, XREF=x123, YREF=y123, RTS="vrs", ORIENTATION="out")
+
+e.1234 <- Benchmarking::dea(xsimu, ysimu, XREF=x1234, YREF=y1234, RTS="vrs", ORIENTATION="out")
+
+
+# Inversion Farell-Sheppard 
+# Farell versus Shephard
+one <- rep(1, nbsimu)
+eff.1 <- one/e.1$eff  
+eff.12 <- one/e.12$eff  
+eff.123 <- one/e.123$eff 
+eff.1234 <- one/e.1234$eff  
+
+@
+
+<<echo =FALSE, results=tex, label=TableFIMPS >>=
+results <- cbind(eff.1, eff.12, eff.123, eff.1234)
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "Efficiency on FIMPS 1" = r$eff.1,
+                     "Efficiency on FIMPS 2" = r$eff.12,
+                     "Efficiency on FIMPS 3" = r$eff.123, 
+                     "Efficiency on FIMPS 4" = r$eff.1234 
+                     )
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Efficiencies on ",nbsimu," points."),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+
+<<echo =FALSE, results=tex, label=TableFIMPS-BC >>=
+
+results<- cbind(effBC.1, effBC.12, effBC.123, effBC.1234)
+
+r <- as.data.frame(results)
+Myvars<- with(r,data.frame( "Efficiency on FIMPS-BC 1" = r$effBC.1,
+                     "Efficiency on FIMPS-BC 2" = r$effBC.12,
+                     "Efficiency on FIMPS-BC 3" = r$effBC.123,
+                     "Efficiency on FIMPS-BC 4" = r$effBC.1234
+                     )
+)
+
+tableContinuous(vars = Myvars , stats = c("n", "min", "mean", "median","max"),
+                cap = paste("Bias-corrected efficiencies on ",nbsimu," points."),  
+                prec=3, longtable = FALSE
+                )
+
+@
+
+We can summarize the  distributions by the following Box-plots : 
+
+<<fig=TRUE,echo=FALSE, label=PLOT-FIMPS-BC>>=
+par(oma=c(0,0,2,0)) 
+par(mfrow=c(2,2), pty = "s")
+
+# DEA  efficiencies
+boxplot(eff.1234, eff.123,eff.12,effBC.1,
+    col = c(" darkseagreen", "tan", "cadetblue", "indianred"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    sub = paste ("DEA FIMPS Frontiers " ),
+    outline=FALSE,
+    axes = FALSE,
+    names = c("FIMPS-BC 4", "FIMPS-BC 3", "FIMPS-BC 2", "FIMPS-BC 1" ))
+       
+axis(side = 1)
+axis(side=2)
+
+# DEA-BC efficiencies
+
+boxplot(effBC.1234, effBC.123,effBC.12,effBC.1,
+    col = c(" darkseagreen", "tan", "cadetblue", "indianred"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    sub = paste (" Bias-Corrected DEA FIMPS Frontiers " ),
+    outline=FALSE,
+    axes = FALSE,
+    names = c("FIMPS-BC 4", "FIMPS-BC 3", "FIMPS-BC 2", "FIMPS-BC 1" ))
+       
+axis(side = 1)
+axis(side=2)
+
+# Main title of the graph
+title(paste ("Distribution of firm's efficiencies (",nbsimu,"points) "),outer=T)
+
+@
+
+<<fig=TRUE,echo=FALSE, label=PLOT-FIMPS-Comp>>=
+
+boxplot(eff.1234,effBC.1234,eff.123,effBC.123, eff.12, effBC.12,eff.1, effBC.1,
+   col = c(" darkseagreen", " darkseagreen",  "tan", "tan" , "cadetblue", "cadetblue", "indianred", "indianred"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    main = paste ("Distribution of efficiencies of ",nbsimu," random firms :  \n Comparison of BC vs DEA FIMPS" ),
+    outline=FALSE,
+    axes = FALSE,
+    names = c(" 4","BC-4"," 3","BC-3", "2","BC-2", "1", "BC-1"))
+axis(side = 1)
+axis(side=2, at = c(2,4,6,8), labels = FALSE)      
+@
+
+\section{Testig FIMPS and BC-FIMPS efficiencies distributions}
+
+<<echo=F, results=hide, label=FunctionTest>>=
+library(np)
+
+TestDistSimu <- function(eff1, eff2, nboot) {
+    one <- data.frame(don=eff1)
+    two <- data.frame(don=eff2)
+
+names(one) <- c("effF")  # variables must have the same name
+names(two) <- c("effF")  # variables must have the same name
+Test <- npdeneqtest(one, two, boot.num = nboot)
+list(Pval = Test$Tn.P , Val = Test$Tn)
+}
+@
+
+We use the Li, Maasoumi and Racine (2009) procedure to test whether or not the distributions are the same. We use  \textbf{\Sexpr{Nboot}} bootstraps replications for those tests. 
+
+<<echo=F, results=hide, label=FimpsTests>>=
+
+#On DEA-FIMPS 
+Fimps.P <- matrix(NA, nrow=3, ncol=3)
+row.names(Fimps.P) <- paste("Year", 1:nrow(Fimps.P), sep=" ")
+# We start at year 2 for cols
+colnames(Fimps.P) <- paste("Year", 2:(ncol(Fimps.P)+1), sep=" ")
+       
+Fimps.P[1,1] <- TestDistSimu(eff.1,eff.12, nboot = Nboot)$Pval
+Fimps.P[1,2] <- TestDistSimu(eff.1,eff.123, nboot = Nboot)$Pval
+Fimps.P[1,3] <- TestDistSimu(eff.1,eff.1234, nboot = Nboot)$Pval
+
+Fimps.P[2,2] <- TestDistSimu(eff.12,eff.123, nboot = Nboot)$Pval
+Fimps.P[2,3] <- TestDistSimu(eff.12,eff.1234, nboot = Nboot)$Pval
+
+Fimps.P[3,3] <- TestDistSimu(eff.123,eff.1234, nboot = Nboot)$Pval
+
+
+# On Bias-Corrected FIMPS
+Fimps.BC <- matrix(NA, nrow=3, ncol=3)
+row.names(Fimps.BC) <- paste("Year", 1:nrow(Fimps.BC), sep=" ")
+colnames(Fimps.BC) <- paste("Year", 2:(ncol(Fimps.BC)+1), sep=" ")
+
+# NB : The cols start at year 2 
+Fimps.BC[1,1] <- TestDistSimu(effBC.1,effBC.12, nboot = Nboot)$Pval
+Fimps.BC[1,2] <- TestDistSimu(effBC.1,effBC.123, nboot = Nboot)$Pval
+Fimps.BC[1,3] <- TestDistSimu(effBC.1,effBC.1234, nboot = Nboot)$Pval
+
+
+Fimps.BC[2,2] <- TestDistSimu(effBC.12,effBC.123, nboot = Nboot)$Pval
+Fimps.BC[2,3] <- TestDistSimu(effBC.12,effBC.1234, nboot = Nboot)$Pval
+
+Fimps.BC[3,3] <- TestDistSimu(effBC.123,effBC.1234, nboot = Nboot)$Pval
+
+
+@
+
+
+<<echo=F, results=tex, label=TableFimpsTest>>=
+library(xtable)
+Table.Fimps<- xtable(Fimps.P, 
+                caption = "Test of equality of distribution between DEA FIMPS efficiencies")
+digits(Table.Fimps) <- 3
+print(Table.Fimps)
+
+
+Table.Fimps.BC <- xtable(Fimps.BC, 
+            caption = "Test of equality of distribution between Bias-corrected FIMPS efficiencies") 
+digits(Table.Fimps.BC) <- 3
+print(Table.Fimps.BC)
+
+@
+
+
+\vfill
+<<echo =false, results=hide,label=TAC>>=
+tac <- proc.time()
+Dur <-tac-tic
+@
+NB :This program runned for \Sexpr{tac-tic} seconds. 
+\end{document}
