@@ -44,14 +44,14 @@ tic <- proc.time()
 #ns   <- 100
 ns <- 100
  # Nombre de bootstraps for biais correction
-N.rep <- 39
+N.rep <- 399
 
 # Niveau pour la correction du biais (default = 0.05)
 alpha.conf <- 0.05   #One minus the size of the confidence interval for the bias corrected efficiencies
 # Nombre de Bootstraps pour test de Li
 
 #Number of bootstraps for the  test : ref Li, Maasoumi et Racine (2009)
-Nboot<-39
+Nboot<-399
 
 # All firms used here 
 nbsimu <- 4*ns
@@ -76,7 +76,7 @@ The parameters used in this simulation exercise are :
   \item Level for the bias correction $\alpha$ = \Sexpr{alpha.conf}
   \item For the Li, Maasoumi, and Racine (2009) test, we use \textbf{\Sexpr{Nboot}}  bootstraps.
 \end{itemize}
-\textit{We use  Benchmarking (Peter Bogetoft and Lars Otto, 2014) version \Sexpr{BenchmarkingVersion} for computing effiencies and frontiers and np (Hayfield and Racine, 2008) version \Sexpr{npVersion} for the distribution test. Computation is done under Windows (64) with \Sexpr{R.version.string}.}
+\textit{We use  Benchmarking (Peter Bogetoft and Lars Otto, 2014) version \Sexpr{BenchmarkingVersion} for computing effiencies and frontiers and np (Hayfield and Racine, 2008) version \Sexpr{npVersion} for the distribution test. Computation is done under Windows 8 (64) with \Sexpr{R.version.string}.}
 }
 \tableofcontents
 %\listoffigures
@@ -178,7 +178,7 @@ with $x_{t}\sim U[0,1]$ and $u_{t}\sim \mathcal{N}^{+}(0.2,0.25)$. This procedur
 min.x <- -0.1
 max.x <- 1.1
 min.y <- -0.1
-max.y <- 1.5
+max.y <- 1.9
 
 # True frontier
 xs  <- seq(0,1,by=0.01)
@@ -196,7 +196,7 @@ ys4 <- Simufonction1(xs,4)
 
 
 plot(ys1~xs, col="indianred", type="l", lwd =2, 
-     ylim=c(min.y, max.y),
+     ylim=c(min.y, 2.0),
      axes = FALSE,
      xlab = "Input", ylab ="Output", sub="")
 axis(side = 1)
@@ -477,6 +477,7 @@ Benchmarking::dea.plot(x1234,y1234.star, RTS="vrs", ORIENTATION="in-out",
                        add=TRUE,
                        )
 @
+\clearpage
 
 \section{Efficiencies based on  ``FIMPS'' and ``BC-FIMPS''}
 
@@ -591,20 +592,6 @@ title(paste ("Distribution of firm's efficiencies (",nbsimu,"points) "),outer=T)
 
 @
 
-<<fig=TRUE,echo=FALSE, label=PLOT-FIMPS-Comp>>=
-
-boxplot(eff.1234,effBC.1234,eff.123,effBC.123, eff.12, effBC.12,eff.1, effBC.1,
-   col = c(" darkseagreen", " darkseagreen",  "tan", "tan" , "cadetblue", "cadetblue", "indianred", "indianred"),
-    horizontal=TRUE, 
-    ylab="Years", 
-    main = paste ("Distribution of efficiencies of ",nbsimu," random firms :  \n Comparison of BC vs DEA FIMPS" ),
-    outline=FALSE,
-    axes = FALSE,
-    names = c(" 4","BC-4"," 3","BC-3", "2","BC-2", "1", "BC-1"))
-axis(side = 1)
-axis(side=2, at = c(2,4,6,8), labels = FALSE)      
-@
-
 \section{Testig FIMPS and BC-FIMPS efficiencies distributions}
 
 <<echo=F, results=hide, label=FunctionTest>>=
@@ -683,4 +670,25 @@ tac <- proc.time()
 Dur <-tac-tic
 @
 NB :This program runned for \Sexpr{tac-tic} seconds. 
+
+
+\newpage
+\section*{Appendix}
+\subsection*{Comparing DEA and Bias-corrected DEA efficiencies on FIMPS}
+
+<<fig=TRUE,echo=FALSE, label=PLOT-FIMPS-Comp>>=
+
+boxplot(eff.1234,effBC.1234,eff.123,effBC.123, eff.12, effBC.12,eff.1, effBC.1,
+   col = c(" darkseagreen", " darkseagreen",  "tan", "tan" , "cadetblue", "cadetblue", "indianred", "indianred"),
+    horizontal=TRUE, 
+    ylab="Years", 
+    main = paste ("Distribution of efficiencies of ",nbsimu," random firms :  \n Comparison of BC vs DEA FIMPS" ),
+    outline=FALSE,
+    axes = FALSE,
+    names = c(" 4","BC-4"," 3","BC-3", "2","BC-2", "1", "BC-1"))
+axis(side = 1)
+axis(side=2, at = c(2,4,6,8), labels = FALSE)      
+@
+
+
 \end{document}
